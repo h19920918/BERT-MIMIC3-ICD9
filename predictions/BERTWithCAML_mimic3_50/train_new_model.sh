@@ -10,10 +10,10 @@ CUDA_VISIBLE_DEVICES=4 python -m pdb training.py \
     --patience \
     10 \
     --criterion prec_at_8 \
-    --lr 1e-5 \
+    --lr 1e-4 \
     --embed-file ./mimicdata/mimic3/processed_full.embed \
     --gpu \
     --pos \
-    --from_scratch \
+    # --from_scratch \
     # --redefined_tokenizer \
     # conv_attn \

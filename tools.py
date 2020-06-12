@@ -106,6 +106,25 @@ def pick_model(args, dicts):
             model = BertWithCAMLForMedical(config=config)
         else:
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-small-uncased-pytorch_model.bin', config=config)
+    elif args.model == 'bert-tiny-caml':
+        config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
+        config.Y = int(args.Y)
+        config.gpu = args.gpu
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
+        config.redefined_vocab_size = len(bert_tokenizer)
+        config.redefined_max_position_embeddings = MAX_LENGTH
+        config.last_module = args.last_module
+        config.embed_size = args.embed_size
+        config.embed_file = args.embed_file
+        config.dicts = dicts
+        config.model = args.model
+        if args.from_scratch:
+            model = BertWithCAMLForMedical(config=config)
+        else:
+            model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
 
     if args.test_model:
         sd = torch.load(args.test_model)

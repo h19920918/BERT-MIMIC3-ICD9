@@ -31,7 +31,7 @@ class Batch:
         labels = set()
         hadm_id = int(row[1])
         text = row[2]
-        if bert_tokenizer is not None:
+        if bert_tokenizer is None:
             length = int(row[4])
         cur_code_set = set()
         labels_idx = np.zeros(num_labels)
@@ -79,8 +79,10 @@ class Batch:
         if self.desc_embed:
             self.descs.append(pad_desc_vecs(desc_vecs))
         #reset length
-        # self.length = min(self.max_length, length)
-        self.length = self.max_length
+        if bert_tokenizer is None:
+            self.length = min(self.max_length, length)
+        else:
+            self.length = self.max_length
 
     def pad_docs(self):
         # pad all docs to have self.length
@@ -128,17 +130,17 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False,
     """
     ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
     with open(filename, 'r') as infile:
-        if bert_tokenizer is not None and not test:
-            reader = csv.reader(infile)
-            # header
-            r = list(reader)[1:]
-            random.shuffle(r)
-            r = iter(r)
-            next(r)
-        else:
-            r = csv.reader(infile)
-            # header
-            next(r)
+        # if bert_tokenizer is not None and not test:
+        #     reader = csv.reader(infile)
+        #     # header
+        #     r = list(reader)[1:]
+        #     random.shuffle(r)
+        #     r = iter(r)
+        #     next(r)
+        # else:
+        r = csv.reader(infile)
+        # header
+        next(r)
 
         cur_inst = Batch(desc_embed)
         for row in r:

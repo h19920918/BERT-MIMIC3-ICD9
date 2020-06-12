@@ -28,6 +28,7 @@ import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
 import torch.nn.functional as F
+from torch.nn.init import xavier_uniform_ as xavier_uniform
 
 from .concrete_dropout import ConcreteDropout
 from .modeling_utils import PreTrainedModel, prune_linear_layer
@@ -584,7 +585,7 @@ class BertModel(BertPreTrainedModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)
 
-        if not config.model in ['bert-caml', 'biobert-caml', 'bert-small-caml', 'biobert-small-caml']:
+        if not config.model in ['bert-caml', 'biobert-caml', 'bert-small-caml', 'biobert-small-caml', 'bert-tiny-caml', 'biobert-tiny-caml']:
             self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
@@ -605,7 +606,8 @@ class BertModel(BertPreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, position_ids=None, head_mask=None):
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None,
+                position_ids=None, head_mask=None, inputs_embeds=None):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
         if token_type_ids is None:
@@ -641,7 +643,11 @@ class BertModel(BertPreTrainedModel):
         else:
             head_mask = [None] * self.config.num_hidden_layers
 
-        embedding_output = self.embeddings(input_ids, position_ids=position_ids, token_type_ids=token_type_ids)
+        if inputs_embeds is None:
+            embedding_output = self.embeddings(input_ids, position_ids=position_ids, token_type_ids=token_type_ids)
+        else:
+            embedding_output = inputs_embeds
+
         encoder_outputs = self.encoder(embedding_output,
                                        extended_attention_mask,
                                        head_mask=head_mask)
@@ -1202,7 +1208,7 @@ class BertForMedical(BertPreTrainedModel):
 
     def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
         #calculate the BCE
-        loss = F.binary_cross_entropy_with_logits(yhat, target, pos_weight=pos_labels, reduction='sum')
+        loss = F.binary_cross_entropy_with_logits(yhat, target, pos_weight=pos_labels)
 
         #add description regularization loss if relevant
         if self.lmbda > 0 and diffs is not None:
@@ -1307,6 +1313,11 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
         self.embed_file = config.embed_file
         self.dicts = config.dicts
 
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+        self.init_weights()
+
         # make embedding layer
         if self.embed_file:
             print("loading pretrained embeddings...")
@@ -1319,27 +1330,30 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
             vocab_size = len(self.dicts['ind2w'])
             self.embed = nn.Embedding(self.vocab_size+2, self.embed_size, padding_idx=0)
 
-        self.expand_linear = nn.Linear(self.embed_size, config.hidden_size)
-
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.expand_linear = nn.Linear(self.embed_size, config.hidden_size, bias=False)
+        xavier_uniform(self.expand_linear.weight)
 
         if self.last_module == 'basic':
             self.final = nn.Linear(config.hidden_size, self.Y)
+            xavier_uniform(self.final.weight)
         elif self.last_module == 'soft_attn':
             self.key = nn.Linear(config.hidden_size, 1, bias=False)
             self.value = nn.Linear(config.hidden_size, config.hidden_size)
             self.final = nn.Linear(config.hidden_size, self.Y)
+            xavier_uniform(self.key.weight)
+            xavier_uniform(self.value.weight)
+            xavier_uniform(self.final.weight)
         elif self.last_module == 'caml_attn':
             self.bert_pool = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention = nn.Linear(config.hidden_size, self.Y)
+            self.bert_attention = nn.Linear(config.hidden_size, self.Y, bias=False)
             self.bert_classifier = nn.Linear(config.hidden_size, self.Y)
-
-        self.init_weights()
+            xavier_uniform(self.bert_pool.weight)
+            xavier_uniform(self.bert_attention.weight)
+            xavier_uniform(self.bert_classifier.weight)
 
     def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
         #calculate the BCE
-        loss = F.binary_cross_entropy_with_logits(yhat, target, pos_weight=pos_labels, reduction='sum')
+        loss = F.binary_cross_entropy_with_logits(yhat, target, pos_weight=pos_labels)
 
         #add description regularization loss if relevant
         if self.lmbda > 0 and diffs is not None:
@@ -1380,39 +1394,24 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
             zi = self.final.weight[inds,:]
             diff = (zi - bi).mul(zi - bi).mean()
 
-            #multiply by number of labels to make sure overall mean is balanced with regard to number of labels
+            # multiply by number of labels to make sure overall mean is balanced with regard to number of labels
             diffs.append(self.lmbda*diff*bi.size()[0])
         return diffs
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
                 position_ids=None, head_mask=None, desc_data=None, pos_labels=None):
         x = self.embed(input_ids)
-        x = self.dropout(x)
         x = self.expand_linear(x)
-        x = gelu(x)
-        # x = x.transpose(1, 2)
+        x = self.dropout(x)
 
-        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)
-        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
-        if head_mask is not None:
-            if head_mask.dim() == 1:
-                head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-                head_mask = head_mask.expand(self.config.num_hidden_layers, -1, -1, -1, -1)
-            elif head_mask.dim() == 2:
-                head_mask = head_mask.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)
-            head_mask = head_mask.to(dtype=next(self.parameters()).dtype)
-        else:
-            head_mask = [None] * self.config.num_hidden_layers
-        encoder_outputs = self.bert.encoder(x, extended_attention_mask, head_mask=head_mask)
-        sequence_output = encoder_outputs[0]
-        pooled_output = self.bert.pooler(sequence_output)
-
-        outputs = (sequence_output, pooled_output,) + encoder_outputs[1:]
+        outputs = self.bert(input_ids, \
+                            attention_mask, \
+                            inputs_embeds=x, \
+                           )
 
         # For multi processing
         if self.last_module == 'basic':
-            x = outputs[1]
+            x = outputs[0].sum(dim=1)
             x = self.dropout(x)
             logits = self.final(x)
         elif self.last_module == 'soft_attn':

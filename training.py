@@ -62,12 +62,12 @@ def init(args):
     print(model)
 
     if not args.test_model:
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml']:
+        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
             param_optimizer = list(model.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             optimizer_grouped_parameters = [
                 {'params': [p for n, p in param_optimizer if not any(
-                    nd in n for nd in no_decay)], 'weight_decay': 0.01},
+                    nd in n for nd in no_decay)], 'weight_decay': 1e-5},
                 {'params': [p for n, p in param_optimizer if any(
                     nd in n for nd in no_decay)], 'weight_decay': 0.0}
             ]
@@ -115,6 +115,18 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
         Main loop. does train and test
     """
 
+    dev_acc_macro, dev_prec_macro, dev_rec_macro, dev_f1_macro = 0.0, 0.0, 0.0, 0.0
+    dev_acc_micro, dev_prec_micro, dev_rec_micro, dev_f1_micro = 0.0, 0.0, 0.0, 0.0
+    dev_rec_at_5, dev_prec_at_5, dev_f1_at_5 = 0.0, 0.0, 0.0
+    dev_auc_macro, dev_auc_micro = 0.0, 0.0
+    dev_epoch, dev_loss = 0.0, 0.0
+
+    test_acc_macro, test_prec_macro, test_rec_macro, test_f1_macro = 0.0, 0.0, 0.0, 0.0
+    test_acc_micro, test_prec_micro, test_rec_micro, test_f1_micro = 0.0, 0.0, 0.0, 0.0
+    test_rec_at_5, test_prec_at_5, test_f1_at_5 = 0.0, 0.0, 0.0
+    test_auc_macro, test_auc_micro = 0.0, 0.0
+    test_epoch, test_loss = 0.0, 0.0
+
     metrics_hist = defaultdict(lambda: [])
     metrics_hist_te = defaultdict(lambda: [])
     metrics_hist_tr = defaultdict(lambda: [])
@@ -155,6 +167,74 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
         for name in metrics_all[2].keys():
             metrics_hist_tr[name].append(metrics_all[2][name])
         metrics_hist_all = (metrics_hist, metrics_hist_te, metrics_hist_tr)
+
+        if metrics_hist_te['auc_micro'][0] >= test_auc_micro:
+            test_acc_marco = metrics_hist_te['acc_macro'][0]
+            test_prec_macro = metrics_hist_te['prec_macro'][0]
+            test_rec_macro = metrics_hist_te['rec_macro'][0]
+            test_f1_macro = metrics_hist_te['f1_macro'][0]
+            test_acc_mirco = metrics_hist_te['acc_micro'][0]
+            test_prec_mirco = metrics_hist_te['prec_micro'][0]
+            test_rec_mirco = metrics_hist_te['rec_micro'][0]
+            test_f1_micro = metrics_hist_te['f1_micro'][0]
+            test_rec_at_5 = metrics_hist_te['rec_at_5'][0]
+            test_prec_at_5 = metrics_hist_te['prec_at_5'][0]
+            test_f1_at_5 = metrics_hist_te['f1_at_5'][0]
+            test_auc_macro = metrics_hist_te['auc_macro'][0]
+            test_auc_micro = metrics_hist_te['auc_micro'][0]
+            test_loss = metrics_hist_te['loss_test'][0]
+            test_epoch = epoch
+
+        if metrics_hist['auc_micro'][0] >= dev_auc_micro:
+            dev_acc_marco = metrics_hist['acc_macro'][0]
+            dev_prec_macro = metrics_hist['prec_macro'][0]
+            dev_rec_macro = metrics_hist['rec_macro'][0]
+            dev_f1_macro = metrics_hist['f1_macro'][0]
+            dev_acc_mirco = metrics_hist['acc_micro'][0]
+            dev_prec_mirco = metrics_hist['prec_micro'][0]
+            dev_rec_mirco = metrics_hist['rec_micro'][0]
+            dev_f1_micro = metrics_hist['f1_micro'][0]
+            dev_rec_at_5 = metrics_hist['rec_at_5'][0]
+            dev_prec_at_5 = metrics_hist['prec_at_5'][0]
+            dev_f1_at_5 = metrics_hist['f1_at_5'][0]
+            dev_auc_macro = metrics_hist['auc_macro'][0]
+            dev_auc_micro = metrics_hist['auc_micro'][0]
+            dev_loss = metrics_hist['loss_dev'][0]
+            dev_epoch = epoch
+
+        print()
+        print('-'*19 + ' Best (Dev) ' + '-'*19)
+        print('Best Epoch: %d' % dev_epoch)
+        print()
+        print("[MACRO] accuracy, precision, recall, f-measure, AUC")
+        print("%.4f, %.4f, %.4f, %.4f, %.4f" % (dev_acc_macro, dev_prec_macro,
+            dev_rec_macro, dev_f1_macro, dev_auc_macro))
+        print("[MICRO] accuracy, precision, recall, f-measure, AUC")
+        print("%.4f, %.4f, %.4f, %.4f, %.4f" % (dev_acc_micro, dev_prec_micro,
+            dev_rec_micro, dev_f1_micro, dev_auc_micro))
+        print('rec_at_5: %.4f' % dev_rec_at_5)
+        print('prec_at_5: %.4f' % dev_prec_at_5)
+        print()
+        print('Dev loss: %.4f' % dev_loss)
+        print()
+        print('-'*51)
+
+        print()
+        print('-'*19 + ' Best (Test) ' + '-'*19)
+        print('Best Epoch: %d' % test_epoch)
+        print()
+        print("[MACRO] accuracy, precision, recall, f-measure, AUC")
+        print("%.4f, %.4f, %.4f, %.4f, %.4f" % (test_acc_macro, test_prec_macro,
+            test_rec_macro, test_f1_macro, test_auc_macro))
+        print("[MICRO] accuracy, precision, recall, f-measure, AUC")
+        print("%.4f, %.4f, %.4f, %.4f, %.4f" % (test_acc_micro, test_prec_micro,
+            test_rec_micro, test_f1_micro, test_auc_micro))
+        print('rec_at_5: %.4f' % test_rec_at_5)
+        print('prec_at_5: %.4f' % test_prec_at_5)
+        print()
+        print('Test loss: %.4f' % test_loss)
+        print()
+        print('-'*51)
 
         # save metrics, model, params
         persistence.save_everything(args, \
@@ -339,7 +419,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
             token_type_ids = None
             position_ids = None
 
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml']:
+        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
             output, loss = model(input_ids=data, \
                                  token_type_ids=token_type_ids, \
                                  attention_mask=attention_mask, \
@@ -351,13 +431,11 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
         else:
             output, loss, _ = model(data, target, desc_data=desc_data)
 
-        loss = loss / batch_size
-
         loss.backward()
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml']:
+        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml']:
+        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
             scheduler.step()
         model.zero_grad()
 
@@ -444,7 +522,7 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
             token_type_ids = None
             position_ids = None
 
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml']:
+        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
             with torch.no_grad():
                 output, loss = model(input_ids=data, \
                                      token_type_ids=token_type_ids, \
@@ -508,7 +586,7 @@ if __name__ == "__main__":
     parser.add_argument("model", type=str, \
                         choices=["cnn_vanilla", "rnn", \
                                  "conv_attn", "multi_conv_attn", "logreg", "saved", "bert", "biobert", \
-                                 "bert-caml", "bert-small-caml", \
+                                 "bert-caml", "bert-small-caml", "bert-tiny-caml" \
                                 ], \
                                 help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
@@ -534,10 +612,8 @@ if __name__ == "__main__":
                         help="coefficient for penalizing l2 norm of model weights (default: 0)")
     parser.add_argument("--lr", type=float, required=False, dest="lr", default=1e-3,
                         help="learning rate for Adam optimizer (default=1e-3)")
-    parser.add_argument("--batch-size", type=int, required=False, dest="batch_size", default=3,
+    parser.add_argument("--batch-size", type=int, required=False, dest="batch_size", default=8,
                         help="size of training batches")
-    # parser.add_argument("--batch-size", type=int, required=False, dest="batch_size", default=8,
-    #                     help="size of training batches")
     parser.add_argument("--dropout", dest="dropout", type=float, required=False, default=0.5,
                         help="optional specification of dropout (default: 0.5)")
     parser.add_argument("--lmbda", type=float, required=False, dest="lmbda", default=0,
@@ -563,10 +639,16 @@ if __name__ == "__main__":
     parser.add_argument('--pos', action='store_true')
     parser.add_argument('--redefined_tokenizer', action='store_true')
     parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
-    # parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/mimic3-6000-limit-10000-vocab.txt')
-    parser.add_argument('--last_module', type=str, default='basic')
+    parser.add_argument('--last_module', type=str, default='soft_attn')
     parser.add_argument('--from_scratch', action='store_true')
+    parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
     args = parser.parse_args()
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+
     command = ' '.join(['python'] + sys.argv)
     args.command = command
     main(args)
