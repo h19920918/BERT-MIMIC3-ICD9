@@ -67,7 +67,7 @@ def init(args):
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             optimizer_grouped_parameters = [
                 {'params': [p for n, p in param_optimizer if not any(
-                    nd in n for nd in no_decay)], 'weight_decay': 1e-5},
+                    nd in n for nd in no_decay)], 'weight_decay': 0.0},
                 {'params': [p for n, p in param_optimizer if any(
                     nd in n for nd in no_decay)], 'weight_decay': 0.0}
             ]
@@ -136,6 +136,7 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
 
     # train for n_epochs unless criterion metric does not improve for [patience] epochs
     for epoch in range(args.n_epochs):
+        best = False
         #only test on train/test set on very last epoch
         if epoch == 0 and not args.test_model:
             model_dir = os.path.join(MODEL_DIR, '_'.join([args.model, time.strftime('%b_%d_%H:%M:%S', time.localtime())]))
@@ -169,13 +170,13 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
         metrics_hist_all = (metrics_hist, metrics_hist_te, metrics_hist_tr)
 
         if metrics_hist_te['auc_micro'][-1] >= test_auc_micro:
-            test_acc_marco = metrics_hist_te['acc_macro'][-1]
+            test_acc_macro = metrics_hist_te['acc_macro'][-1]
             test_prec_macro = metrics_hist_te['prec_macro'][-1]
             test_rec_macro = metrics_hist_te['rec_macro'][-1]
             test_f1_macro = metrics_hist_te['f1_macro'][-1]
-            test_acc_mirco = metrics_hist_te['acc_micro'][-1]
-            test_prec_mirco = metrics_hist_te['prec_micro'][-1]
-            test_rec_mirco = metrics_hist_te['rec_micro'][-1]
+            test_acc_micro = metrics_hist_te['acc_micro'][-1]
+            test_prec_micro = metrics_hist_te['prec_micro'][-1]
+            test_rec_micro = metrics_hist_te['rec_micro'][-1]
             test_f1_micro = metrics_hist_te['f1_micro'][-1]
             test_rec_at_5 = metrics_hist_te['rec_at_5'][-1]
             test_prec_at_5 = metrics_hist_te['prec_at_5'][-1]
@@ -186,13 +187,13 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
             test_epoch = epoch
 
         if metrics_hist['auc_micro'][-1] >= dev_auc_micro:
-            dev_acc_marco = metrics_hist['acc_macro'][-1]
+            dev_acc_macro = metrics_hist['acc_macro'][-1]
             dev_prec_macro = metrics_hist['prec_macro'][-1]
             dev_rec_macro = metrics_hist['rec_macro'][-1]
             dev_f1_macro = metrics_hist['f1_macro'][-1]
-            dev_acc_mirco = metrics_hist['acc_micro'][-1]
-            dev_prec_mirco = metrics_hist['prec_micro'][-1]
-            dev_rec_mirco = metrics_hist['rec_micro'][-1]
+            dev_acc_micro = metrics_hist['acc_micro'][-1]
+            dev_prec_micro = metrics_hist['prec_micro'][-1]
+            dev_rec_micro = metrics_hist['rec_micro'][-1]
             dev_f1_micro = metrics_hist['f1_micro'][-1]
             dev_rec_at_5 = metrics_hist['rec_at_5'][-1]
             dev_prec_at_5 = metrics_hist['prec_at_5'][-1]
@@ -201,6 +202,7 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
             dev_auc_micro = metrics_hist['auc_micro'][-1]
             dev_loss = metrics_hist['loss_dev'][-1]
             dev_epoch = epoch
+            best = True
 
         print()
         print('-'*19 + ' Best (Dev) ' + '-'*19)
@@ -244,6 +246,7 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
                                     params, \
                                     args.criterion, \
                                     evaluate, \
+                                    best=best, \
                                    )
 
         if test_only:
@@ -440,6 +443,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
         model.zero_grad()
 
         losses.append(loss.item())
+        break
 
         if not quiet and batch_idx % print_every == 0:
             #print the average loss of the last 10 batches
@@ -639,7 +643,7 @@ if __name__ == "__main__":
     parser.add_argument('--pos', action='store_true')
     parser.add_argument('--redefined_tokenizer', action='store_true')
     parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
-    parser.add_argument('--last_module', type=str, default='soft_attn')
+    parser.add_argument('--last_module', type=str, default='caml_attn')
     parser.add_argument('--from_scratch', action='store_true')
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
     args = parser.parse_args()

@@ -53,7 +53,7 @@ def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
             json.dump(scores, f, indent=1)
     return preds_file
 
-def save_everything(args, metrics_hist_all, model, model_dir, params, criterion, evaluate=False):
+def save_everything(args, metrics_hist_all, model, model_dir, params, criterion, evaluate=False, best=False):
     """
         Save metrics, model, params all in model_dir
     """
@@ -61,16 +61,23 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
     params['model_dir'] = model_dir
     save_params_dict(params)
 
+    if best:
+        sd = model.cpu().state_dict()
+        torch.save(sd, model_dir + '/model_best.pth')
+        if args.gpu:
+            model.cuda()
+        print('Save best model')
+
+
     if not evaluate:
         #save the model with the best criterion metric
         if not np.all(np.isnan(metrics_hist_all[0][criterion])):
-            if criterion == 'loss_dev': 
+            if criterion == 'loss_dev':
                 eval_val = np.nanargmin(metrics_hist_all[0][criterion])
             else:
                 eval_val = np.nanargmax(metrics_hist_all[0][criterion])
 
-            if eval_val == len(metrics_hist_all[0][criterion]) - 1:                
-
+            if eval_val == len(metrics_hist_all[0][criterion]) - 1:
 		#save state dict
                 sd = model.cpu().state_dict()
                 torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
