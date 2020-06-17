@@ -61,13 +61,15 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
     params['model_dir'] = model_dir
     save_params_dict(params)
 
-    if best:
+    if args.model in ['cnn_vanilla', 'rnn', 'conv_attn', 'multi_conv_attn', 'logreg', 'saved'] and best:
         sd = model.cpu().state_dict()
-        torch.save(sd, model_dir + '/model_best.pth')
+        torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
         if args.gpu:
             model.cuda()
-        print('Save best model')
-
+        print("saved metrics, params, model to directory %s\n" % (model_dir))
+    elif best:
+        model.save_pretrained(model_dir)
+        print('Save best model --> %s' % (model_dir))
 
     if not evaluate:
         #save the model with the best criterion metric

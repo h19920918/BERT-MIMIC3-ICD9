@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=4 python -m pdb training.py \
+CUDA_VISIBLE_DEVICES=2 python training.py \
     ./mimicdata/mimic3/train_50.csv \
     ./mimicdata/mimic3/vocab.csv \
     50 \
@@ -13,6 +13,7 @@ CUDA_VISIBLE_DEVICES=4 python -m pdb training.py \
     --lr 5e-5 \
     --embed-file ./mimicdata/mimic3/processed_full.embed \
     --gpu \
+    --last_module soft_attn \
     --pos \
     # --from_scratch \
     # --redefined_tokenizer \

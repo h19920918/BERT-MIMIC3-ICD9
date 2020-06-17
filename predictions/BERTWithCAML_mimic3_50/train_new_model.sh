@@ -13,6 +13,7 @@ CUDA_VISIBLE_DEVICES=4 python -m pdb training.py \
     --lr 1e-4 \
     --embed-file ./mimicdata/mimic3/processed_full.embed \
     --gpu \
+    --last_module basic \
     --pos \
     # --from_scratch \
     # --redefined_tokenizer \

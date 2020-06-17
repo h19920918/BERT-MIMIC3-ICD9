@@ -585,7 +585,7 @@ class BertModel(BertPreTrainedModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)
 
-        if not config.model in ['bert-caml', 'biobert-caml', 'bert-small-caml', 'biobert-small-caml', 'bert-tiny-caml', 'biobert-tiny-caml']:
+        if not config.model in ['bert-small-caml', 'bert-tiny-caml']:
             self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
@@ -1193,18 +1193,25 @@ class BertForMedical(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
+        self.init_weights()
+
         if self.last_module == 'basic':
             self.final = nn.Linear(config.hidden_size, self.Y)
+            xavier_uniform(self.final.weight)
         elif self.last_module == 'soft_attn':
             self.key = nn.Linear(config.hidden_size, 1, bias=False)
             self.value = nn.Linear(config.hidden_size, config.hidden_size)
             self.final = nn.Linear(config.hidden_size, self.Y)
+            xavier_uniform(self.key.weight)
+            xavier_uniform(self.value.weight)
+            xavier_uniform(self.final.weight)
         elif self.last_module == 'caml_attn':
             self.bert_pool = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention = nn.Linear(config.hidden_size, self.Y)
+            self.bert_attention = nn.Linear(config.hidden_size, self.Y, bias=False)
             self.bert_classifier = nn.Linear(config.hidden_size, self.Y)
-
-        self.init_weights()
+            xavier_uniform(self.bert_pool.weight)
+            xavier_uniform(self.bert_attention.weight)
+            xavier_uniform(self.bert_classifier.weight)
 
     def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
         #calculate the BCE
@@ -1257,6 +1264,7 @@ class BertForMedical(BertPreTrainedModel):
                 position_ids=None, head_mask=None, desc_data=None, pos_labels=None):
         outputs = self.bert(input_ids, position_ids=position_ids, token_type_ids=token_type_ids,
                             attention_mask=attention_mask, head_mask=head_mask)
+
         # For multi processing
         if self.last_module == 'basic':
             x = outputs[1]
@@ -1334,6 +1342,7 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
         xavier_uniform(self.expand_linear.weight)
 
         if self.last_module == 'basic':
+            self.trans = nn.Linear(config.hidden_size, config.hidden_size)
             self.final = nn.Linear(config.hidden_size, self.Y)
             xavier_uniform(self.final.weight)
         elif self.last_module == 'soft_attn':
@@ -1411,7 +1420,10 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
 
         # For multi processing
         if self.last_module == 'basic':
-            x = outputs[0].sum(dim=1)
+            x = outputs[0].mean(dim=1)
+            x = gelu(x)
+            x = self.trans(x)
+            x = gelu(x)
             x = self.dropout(x)
             logits = self.final(x)
         elif self.last_module == 'soft_attn':

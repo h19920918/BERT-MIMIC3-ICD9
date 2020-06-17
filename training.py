@@ -17,6 +17,7 @@ import sys
 import time
 from tqdm import tqdm
 from collections import defaultdict
+from torch.utils.data import DataLoader, RandomSampler
 
 from constants import *
 import datasets
@@ -25,7 +26,10 @@ import interpret
 import persistence
 import models as models
 import tools as tools
-from pytorch_transformers import BertTokenizer
+from pytorch_transformers import BertConfig, BertTokenizer, BertForMaskedLM
+
+
+BERT_MODEL_LIST = ['bert', 'biobert', 'bert-caml', 'bert-samll-caml', 'bert-tiny-caml', 'bert-tiny']
 
 
 def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
@@ -41,6 +45,9 @@ def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
 def main(args):
     start = time.time()
+    if args.pretrain:
+        pretrain(args, args.data_path)
+
     args, model, optimizer, params, dicts, scheduler, labels_weight = init(args)
     epochs_trained = train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight)
     print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS: %f" % (args.model, epochs_trained, time.time() - start))
@@ -62,7 +69,7 @@ def init(args):
     print(model)
 
     if not args.test_model:
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
+        if args.model in BERT_MODEL_LIST:
             param_optimizer = list(model.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             optimizer_grouped_parameters = [
@@ -360,6 +367,7 @@ def one_epoch(args, model, optimizer, Y, epoch, n_epochs, batch_size, data_path,
     metrics_all = (metrics, metrics_te, metrics_tr)
     return metrics_all
 
+
 def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet, scheduler, labels_weight):
     """
         Training loop.
@@ -386,6 +394,11 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
+    elif args.model == 'bert-tiny':
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
     else:
         bert_tokenizer = None
 
@@ -410,7 +423,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
         else:
             desc_data = None
 
-        if args.model in ['bert', 'biobert']:
+        if args.model in ['bert', 'biobert', 'bert-tiny']:
             token_type_ids = (data > 0).long() * 0
             attention_mask = (data > 0).long()
             position_ids = torch.arange(data.size(1)).expand(data.size(0), data.size(1))
@@ -422,7 +435,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
             token_type_ids = None
             position_ids = None
 
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
+        if args.model in BERT_MODEL_LIST:
             output, loss = model(input_ids=data, \
                                  token_type_ids=token_type_ids, \
                                  attention_mask=attention_mask, \
@@ -435,15 +448,14 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
             output, loss, _ = model(data, target, desc_data=desc_data)
 
         loss.backward()
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
+        if args.model in BERT_MODEL_LIST:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
+        if args.model in BERT_MODEL_LIST:
             scheduler.step()
         model.zero_grad()
 
         losses.append(loss.item())
-        break
 
         if not quiet and batch_idx % print_every == 0:
             #print the average loss of the last 10 batches
@@ -497,6 +509,11 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
+    elif args.model == 'bert-tiny':
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
     else:
         bert_tokenizer = None
 
@@ -514,7 +531,7 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
         else:
             desc_data = None
 
-        if args.model in ['bert', 'biobert']:
+        if args.model in ['bert', 'biobert', 'bert-tiny']:
             token_type_ids = (data > 0).long() * 0
             attention_mask = (data > 0).long()
             position_ids = torch.arange(data.size(1)).expand(data.size(0), data.size(1))
@@ -526,7 +543,7 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
             token_type_ids = None
             position_ids = None
 
-        if args.model in ['bert', 'biobert', 'bert-caml', 'biobert-caml', 'bert-small-caml', 'bert-tiny-caml']:
+        if args.model in BERT_MODEL_LIST:
             with torch.no_grad():
                 output, loss = model(input_ids=data, \
                                      token_type_ids=token_type_ids, \
@@ -581,6 +598,151 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
     return metrics
 
 
+def pretrain(args, data_path):
+    if args.model == 'bert':
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-base-uncased-vocab.txt', do_lower_case=True)
+    elif args.model == 'biobert':
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
+    elif args.model == 'bert-tiny':
+        if args.redefined_tokenizer:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
+
+    if args.model == 'bert':
+        config = BertConfig.from_pretrained('./pretrained_weights/bert-base-uncased-config.json')
+        config.Y = int(args.Y)
+        config.gpu = args.gpu
+        config.redefined_vocab_size = len(bert_tokenizer)
+        config.redefined_max_position_embeddings = MAX_LENGTH
+        config.last_module = args.last_module
+        config.model = args.model
+
+        if args.from_scratch:
+            model = BertForMaskedLM(config=config)
+        else:
+            model = BertForMaskedLM.from_pretrained('./pretrained_weights/bert-base-uncased-pytorch_model.bin', config=config)
+    elif args.model == 'biobert':
+        config = BertConfig.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/bert_config.json')
+        config.Y = int(args.Y)
+        config.gpu = args.gpu
+        config.redefined_vocab_size = len(bert_tokenizer)
+        config.redefined_max_position_embeddings = MAX_LENGTH
+        config.last_module = args.last_module
+        config.model = args.model
+        if args.from_scratch:
+            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
+        else:
+            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
+        config.redefined_vocab_size = len(bert_tokenizer)
+        config.redefined_max_position_embeddings = MAX_LENGTH
+        config.model = args.model
+        if args.from_scratch:
+            model = BertForMaskedLM(config=config)
+        else:
+            model = BertForMaskedLM.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/pytorch_model.bin', config=config)
+
+    if args.gpu:
+        model.cuda()
+
+
+    param_optimizer = list(model.named_parameters())
+    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in param_optimizer if not any(
+            nd in n for nd in no_decay)], 'weight_decay': 0.0},
+        {'params': [p for n, p in param_optimizer if any(
+            nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    pretrain_optimizer = optim.Adam(optimizer_grouped_parameters, weight_decay=args.weight_decay, lr=args.lr)
+    length = datasets.data_length(args.data_path, args.version)
+    t_total = length // args.batch_size * args.pretrain_epochs
+    pretrain_scheduler = get_linear_schedule_with_warmup(pretrain_optimizer, \
+                                                         num_warmup_steps=args.warmup_steps, \
+                                                         num_training_steps=t_total, \
+                                                        )
+
+    print_every = 25
+
+    model.train()
+    model.zero_grad()
+    train_dataset = datasets.pretrain_data_generator(args, data_path, args.batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
+
+    train_sampler = RandomSampler(train_dataset)
+    train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.batch_size)
+
+    for epoch in range(args.pretrain_epochs):
+        losses = []
+        for batch_idx, data in tqdm(enumerate(train_dataloader)):
+            inputs, labels = random_mask_tokens(args, data, bert_tokenizer)
+            if args.gpu:
+                inputs = inputs.cuda()
+                labels = labels.cuda()
+
+            token_type_ids = (inputs > 0).long() * 0
+            attention_mask = (inputs > 0).long()
+            position_ids = torch.arange(inputs.size(1)).expand(inputs.size(0), inputs.size(1))
+            if args.gpu:
+                position_ids = position_ids.cuda()
+            position_ids = position_ids * (inputs > 0).long()
+
+            outputs = model(input_ids=inputs, \
+                            token_type_ids=token_type_ids, \
+                            attention_mask=attention_mask, \
+                            position_ids=position_ids, \
+                            masked_lm_labels=labels, \
+                           )
+            loss = outputs[0]
+            losses.append(loss.item())
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            pretrain_optimizer.step()
+            pretrain_scheduler.step()
+            model.zero_grad()
+
+            if batch_idx % print_every == 0:
+                # print the average loss of the last 10 batches
+                print("Train epoch: {} [batch #{}, batch_size {}, seq length {}]\tLoss: {:.6f}".format(
+                    epoch, batch_idx, data.size()[0], data.size()[1], np.mean(losses[-10:])))
+
+        loss = sum(losses) / len(losses)
+        print('Epoch %d: %.4f' % (epoch, loss))
+
+    model.save_pretrained(args.pretrain_ckpt_dir)
+    print('Save pretrained model --> %s' % (args.pretrain_ckpt_dir))
+
+
+def random_mask_tokens(args, inputs, tokenizer):
+    """ Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original. """
+    if len(inputs.shape) == 1:
+        inputs = inputs.unsqueeze(0)
+
+    labels = inputs.clone()
+
+    input_mask = (~inputs.eq(0)).to(torch.float)
+
+    masking_prob = 0.15
+    # Consider padding
+    masked_indices = torch.bernoulli(input_mask * masking_prob).bool()
+    labels[~masked_indices] = -1
+
+    indices_replaced = torch.bernoulli(input_mask * 0.8).bool() & masked_indices
+    inputs[indices_replaced] = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
+
+    indices_random = torch.bernoulli(input_mask * 0.5).bool() & masked_indices & ~indices_replaced
+    random_words = torch.randint(len(tokenizer), labels.shape, dtype=torch.long)
+    inputs[indices_random] = random_words[indices_random]
+
+    return inputs, labels
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train a neural network on some clinical documents")
     parser.add_argument("data_path", type=str,
@@ -590,7 +752,8 @@ if __name__ == "__main__":
     parser.add_argument("model", type=str, \
                         choices=["cnn_vanilla", "rnn", \
                                  "conv_attn", "multi_conv_attn", "logreg", "saved", "bert", "biobert", \
-                                 "bert-caml", "bert-small-caml", "bert-tiny-caml" \
+                                 "bert-caml", "bert-small-caml",
+                                 "bert-tiny-caml", 'bert-tiny' \
                                 ], \
                                 help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
@@ -642,9 +805,14 @@ if __name__ == "__main__":
     parser.add_argument('--warmup_steps', type=int, default=0)
     parser.add_argument('--pos', action='store_true')
     parser.add_argument('--redefined_tokenizer', action='store_true')
-    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
-    parser.add_argument('--last_module', type=str, default='caml_attn')
+    # parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
+    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bert-tiny-mimic3-100-limit-51923-vocab.txt')
+    parser.add_argument('--last_module', type=str, default='basic')
     parser.add_argument('--from_scratch', action='store_true')
+    parser.add_argument('--pretrain', action='store_true')
+    parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_512')
+    parser.add_argument('--pretrain_epochs', type=int, default=3)
+    parser.add_argument('--pretrain_lr', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
     args = parser.parse_args()
 
@@ -655,4 +823,8 @@ if __name__ == "__main__":
 
     command = ' '.join(['python'] + sys.argv)
     args.command = command
+
+    if args.pretrain:
+        args.pretrain_ckpt_dir = os.path.join(MODEL_DIR, 'pretrain')
+        os.makedirs(args.pretrain_ckpt_dir, exist_ok=True)
     main(args)

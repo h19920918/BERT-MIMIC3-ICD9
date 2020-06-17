@@ -4,9 +4,12 @@
 from collections import defaultdict
 import csv
 import math
+import torch
 import numpy as np
+import os
 import sys
 import random
+from torch.utils.data import TensorDataset
 
 from constants import *
 
@@ -64,8 +67,8 @@ class Batch:
         if bert_tokenizer is not None:
             if len(text) > self.max_length - 2:
                 text = text[:self.max_length - 2]
-            text.append(bert_tokenizer.cls_token_id)
-            text.insert(0, bert_tokenizer.sep_token_id)
+            text.append(bert_tokenizer.sep_token_id)
+            text.insert(0, bert_tokenizer.cls_token_id)
             length = len(text)
         else:
             if len(text) > self.max_length:
@@ -153,6 +156,57 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False,
             cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, bert_tokenizer)
         cur_inst.pad_docs()
         yield cur_inst.to_ret()
+
+
+def pretrain_data_generator(args, filename, batch_size, version='mimic3', bert_tokenizer=None):
+    """
+        Inputs:
+            filename: holds data sorted by sequence length, for best batching
+            dicts: holds all needed lookups
+            batch_size: the batch size for train iterations
+            num_labels: size of label output space
+            desc_embed: true if using DR-CAML (lambda > 0)
+            version: which (MIMIC) dataset
+        Yields:
+            np arrays with data for training loop.
+    """
+
+    def collect_all_context(args, filename, bert_tokenizer):
+        max_length = MAX_LENGTH
+        with open(filename, 'r') as infile:
+            r = csv.reader(infile)
+            next(r)
+
+            all_instances = []
+            for row in r:
+                text = row[2]
+                text = bert_tokenizer.convert_tokens_to_ids(text.lower().split())
+
+                text_length = len(text)
+                for idx in range(0, text_length, MAX_LENGTH-2):
+                    sub_text = text[idx:idx+MAX_LENGTH-2]
+                    sub_text.append(bert_tokenizer.sep_token_id)
+                    sub_text.insert(0, bert_tokenizer.cls_token_id)
+
+                    sub_length = len(sub_text)
+                    sub_pad_length = MAX_LENGTH - sub_length
+                    sub_pad = [0 for i in range(sub_pad_length)]
+                    sub_text += sub_pad
+
+                    all_instances.append(sub_text)
+
+        all_instances = np.array(all_instances)
+        np.save(args.pretrain_datafile, all_instances)
+        return all_instances
+
+    if not os.path.isfile(args.pretrain_datafile + '.npy'):
+        all_instances = collect_all_context(args, filename, bert_tokenizer)
+    else:
+        all_instances = np.load(args.pretrain_datafile + '.npy')
+
+    all_instances = torch.LongTensor(all_instances)
+    return all_instances
+
 
 def load_vocab_dict(args, vocab_file):
     #reads vocab_file into two lookups (word:ind) and (ind:word)
