@@ -44,6 +44,7 @@ def pick_model(args, dicts):
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-base-uncased-vocab.txt', do_lower_case=True)
+
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH
         config.last_module = args.last_module
@@ -60,19 +61,17 @@ def pick_model(args, dicts):
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
-
-        if args.from_scratch and not args.pretrain:
-            model = BertForMedical(config=config)
-        elif args.pretrain:
-            model = BertForMedical.from_pretrained(args.pretrain_ckpt_dir)
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
+
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH
         config.last_module = args.last_module
         config.model = args.model
-        if args.from_scratch:
+        if args.from_scratch and not args.pretrain:
             model = BertForMedical(config=config)
+        elif args.pretrain:
+            model = BertForMedical.from_pretrained(args.pretrain_ckpt_dir)
         else:
             model = BertForMedical.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny':
@@ -83,12 +82,15 @@ def pick_model(args, dicts):
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
+
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH
         config.last_module = args.last_module
         config.model = args.model
-        if args.from_scratch:
+        if args.from_scratch and not args.pretrain:
             model = BertForMedical(config=config)
+        elif args.pretrain:
+            model = BertForMedical.from_pretrained(args.pretrain_ckpt_dir)
         else:
             model = BertForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-caml':

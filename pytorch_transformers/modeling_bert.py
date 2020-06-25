@@ -422,15 +422,26 @@ class BertLMPredictionHead(nn.Module):
 
         # The output weights are the same as the input embeddings, but there is
         # an output-only bias for each token.
-        self.decoder = nn.Linear(config.hidden_size,
-                                 config.vocab_size,
-                                 bias=False)
+        if config.vocab_size != config.redefined_vocab_size:
+            self.redefined_decoder = nn.Linear(config.hidden_size,
+                                               config.redefined_vocab_size,
+                                               bias=False)
+            self.redefined_bias = nn.Parameter(torch.zeros(config.redefined_vocab_size))
+            self.word_modification = True
+        else:
+            self.decoder = nn.Linear(config.hidden_size,
+                                     config.vocab_size,
+                                     bias=False)
 
-        self.bias = nn.Parameter(torch.zeros(config.vocab_size))
+            self.bias = nn.Parameter(torch.zeros(config.vocab_size))
+            self.word_modification = False
 
     def forward(self, hidden_states):
         hidden_states = self.transform(hidden_states)
-        hidden_states = self.decoder(hidden_states) + self.bias
+        if self.word_modification:
+            hidden_states = self.redefined_decoder(hidden_states) + self.redefined_bias
+        else:
+            hidden_states = self.decoder(hidden_states) + self.bias
         return hidden_states
 
 
@@ -704,6 +715,11 @@ class BertForPreTraining(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.cls = BertPreTrainingHeads(config)
 
+        if config.vocab_size != config.redefined_vocab_size:
+            self.word_modification = True
+        else:
+            self.word_modification = False
+
         self.init_weights()
         self.tie_weights()
 
@@ -711,8 +727,12 @@ class BertForPreTraining(BertPreTrainedModel):
         """ Make sure we are sharing the input and output embeddings.
             Export to TorchScript can't handle parameter sharing so we are cloning them instead.
         """
-        self._tie_or_clone_weights(self.cls.predictions.decoder,
-                                   self.bert.embeddings.word_embeddings)
+        if self.word_modification:
+            self._tie_or_clone_weights(self.cls.predictions.redefined_decoder,
+                                       self.bert.embeddings.redefined_word_embeddings)
+        else:
+            self._tie_or_clone_weights(self.cls.predictions.decoder,
+                                       self.bert.embeddings.word_embeddings)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None,
                 next_sentence_label=None, position_ids=None, head_mask=None):
@@ -769,6 +789,11 @@ class BertForMaskedLM(BertPreTrainedModel):
     def __init__(self, config):
         super(BertForMaskedLM, self).__init__(config)
 
+        if config.vocab_size != config.redefined_vocab_size:
+            self.word_modification = True
+        else:
+            self.word_modification = False
+
         self.bert = BertModel(config)
         self.cls = BertOnlyMLMHead(config)
 
@@ -779,8 +804,12 @@ class BertForMaskedLM(BertPreTrainedModel):
         """ Make sure we are sharing the input and output embeddings.
             Export to TorchScript can't handle parameter sharing so we are cloning them instead.
         """
-        self._tie_or_clone_weights(self.cls.predictions.decoder,
-                                   self.bert.embeddings.word_embeddings)
+        if self.word_modification:
+            self._tie_or_clone_weights(self.cls.predictions.redefined_decoder,
+                                       self.bert.embeddings.redefined_word_embeddings)
+        else:
+            self._tie_or_clone_weights(self.cls.predictions.decoder,
+                                       self.bert.embeddings.word_embeddings)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None,
                 position_ids=None, head_mask=None):
@@ -793,7 +822,10 @@ class BertForMaskedLM(BertPreTrainedModel):
         outputs = (prediction_scores,) + outputs[2:]  # Add hidden states and attention if they are here
         if masked_lm_labels is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            if self.word_modification:
+                masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.redefined_vocab_size), masked_lm_labels.view(-1))
+            else:
+                masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
             outputs = (masked_lm_loss,) + outputs
 
         return outputs  # (masked_lm_loss), prediction_scores, (hidden_states), (attentions)
@@ -1196,6 +1228,7 @@ class BertForMedical(BertPreTrainedModel):
         self.init_weights()
 
         if self.last_module == 'basic':
+            self.trans = nn.Linear(config.hidden_size, config.hidden_size)
             self.final = nn.Linear(config.hidden_size, self.Y)
             xavier_uniform(self.final.weight)
         elif self.last_module == 'soft_attn':
@@ -1267,7 +1300,10 @@ class BertForMedical(BertPreTrainedModel):
 
         # For multi processing
         if self.last_module == 'basic':
-            x = outputs[1]
+            x = outputs[0].mean(dim=1)
+            x = gelu(x)
+            x = self.trans(x)
+            x = gelu(x)
             x = self.dropout(x)
             logits = self.final(x)
         elif self.last_module == 'soft_attn':

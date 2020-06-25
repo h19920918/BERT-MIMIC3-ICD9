@@ -10,7 +10,7 @@ dev_corpus_file = './mimicdata/mimic3/dev_50.csv'
 test_corpus_file = './mimicdata/mimic3/test_50.csv'
 
 limit_alphabet = 100
-vocab_size = 51923
+vocab_size = 100000
 
 tokenizer = BertWordPieceTokenizer(
     vocab_file=None,
@@ -18,15 +18,17 @@ tokenizer = BertWordPieceTokenizer(
     handle_chinese_chars=False,
     strip_accents=False, # Must be False if cased model
     lowercase=True,
-    wordpieces_prefix="##"
+    wordpieces_prefix="##",
 )
 
 tokenizer.train(
     files=[train_corpus_file, dev_corpus_file, test_corpus_file],
     limit_alphabet=limit_alphabet,
-    vocab_size=vocab_size
+    vocab_size=vocab_size,
+    min_frequency=1,
 )
 
 # tokenizer.save("./tokenizers", "bio-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
 # tokenizer.save("./tokenizers", "mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
 tokenizer.save("./tokenizers", "bert-tiny-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
+# tokenizer.save("./tokenizers", "bert-base-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))

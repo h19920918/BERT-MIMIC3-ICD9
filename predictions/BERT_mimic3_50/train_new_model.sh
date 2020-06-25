@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=6 python training.py \
+CUDA_VISIBLE_DEVICES=0 python training.py \
     ./mimicdata/mimic3/train_50.csv \
     ./mimicdata/mimic3/vocab.csv \
     50 \
@@ -12,12 +12,12 @@ CUDA_VISIBLE_DEVICES=6 python training.py \
     --criterion prec_at_8 \
     --lr 5e-5 \
     --embed-file ./mimicdata/mimic3/processed_full.embed \
-    --batch-size 6 \
+    --batch-size 8 \
     --gpu \
-    --last_module basic \
-    --pretrain \
+    --last_module caml_attn \
     --pos \
     # --redefined_tokenizer \
+    # --pretrain \
     # --from_scratch \
     # --pos \
     # conv_attn \

@@ -647,6 +647,18 @@ def pretrain(args, data_path):
             model = BertForMaskedLM(config=config)
         else:
             model = BertForMaskedLM.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/pytorch_model.bin', config=config)
+    elif args.model == 'bert-tiny':
+        config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
+        config.Y = int(args.Y)
+        config.gpu = args.gpu
+        config.redefined_vocab_size = len(bert_tokenizer)
+        config.redefined_max_position_embeddings = MAX_LENGTH
+        config.last_module = args.last_module
+        config.model = args.model
+        if args.from_scratch:
+            model = BertForMaskedLM(config=config)
+        else:
+            model = BertForMaskedLM.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
 
     if args.gpu:
         model.cuda()
@@ -662,7 +674,7 @@ def pretrain(args, data_path):
     ]
     pretrain_optimizer = optim.Adam(optimizer_grouped_parameters, weight_decay=args.weight_decay, lr=args.lr)
     length = datasets.data_length(args.data_path, args.version)
-    t_total = length // args.batch_size * args.pretrain_epochs
+    t_total = length // args.pretrain_batch_size * args.pretrain_epochs
     pretrain_scheduler = get_linear_schedule_with_warmup(pretrain_optimizer, \
                                                          num_warmup_steps=args.warmup_steps, \
                                                          num_training_steps=t_total, \
@@ -672,10 +684,10 @@ def pretrain(args, data_path):
 
     model.train()
     model.zero_grad()
-    train_dataset = datasets.pretrain_data_generator(args, data_path, args.batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
+    train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
 
     train_sampler = RandomSampler(train_dataset)
-    train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.batch_size)
+    train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.pretrain_batch_size)
 
     for epoch in range(args.pretrain_epochs):
         losses = []
@@ -806,11 +818,14 @@ if __name__ == "__main__":
     parser.add_argument('--pos', action='store_true')
     parser.add_argument('--redefined_tokenizer', action='store_true')
     # parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
-    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bert-tiny-mimic3-100-limit-51923-vocab.txt')
+    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bert-tiny-mimic3-100-limit-100000-vocab.txt')
     parser.add_argument('--last_module', type=str, default='basic')
     parser.add_argument('--from_scratch', action='store_true')
     parser.add_argument('--pretrain', action='store_true')
-    parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_512')
+    parser.add_argument("--pretrain-batch-size", type=int, default=2)
+    # parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_512')
+    parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_tiny_512')
+    # parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_tiny_2500')
     parser.add_argument('--pretrain_epochs', type=int, default=3)
     parser.add_argument('--pretrain_lr', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))

@@ -59,16 +59,21 @@ class Batch:
                     desc_vecs.append([len(w2ind)+1])
         #OOV words are given a unique index at end of vocab lookup
         if bert_tokenizer is not None:
-            text = bert_tokenizer.convert_tokens_to_ids(text.lower().split())
+            # text = bert_tokenizer.convert_tokens_to_ids(text.lower().split())
+            text = bert_tokenizer.encode(text.lower(), add_special_tokens=True)
         else:
             text = [int(w2ind[w]) if w in w2ind else len(w2ind)+1 for w in text.split()]
 
         # truncate long documents
         if bert_tokenizer is not None:
-            if len(text) > self.max_length - 2:
-                text = text[:self.max_length - 2]
-            text.append(bert_tokenizer.sep_token_id)
-            text.insert(0, bert_tokenizer.cls_token_id)
+            # if len(text) > self.max_length - 2:
+            #     text = text[:self.max_length - 2]
+            # text.append(bert_tokenizer.sep_token_id)
+            # text.insert(0, bert_tokenizer.cls_token_id)
+
+            if len(text) > self.max_length:
+                text = text[:self.max_length-1]
+                text.append(bert_tokenizer.sep_token_id)
             length = len(text)
         else:
             if len(text) > self.max_length:
@@ -180,11 +185,14 @@ def pretrain_data_generator(args, filename, batch_size, version='mimic3', bert_t
             all_instances = []
             for row in r:
                 text = row[2]
-                text = bert_tokenizer.convert_tokens_to_ids(text.lower().split())
+                text = bert_tokenizer.encode(text.lower(), add_special_tokens=True)
+                text = text[1:]
+                text = text[:-1]
 
                 text_length = len(text)
                 for idx in range(0, text_length, MAX_LENGTH-2):
                     sub_text = text[idx:idx+MAX_LENGTH-2]
+
                     sub_text.append(bert_tokenizer.sep_token_id)
                     sub_text.insert(0, bert_tokenizer.cls_token_id)
 
