@@ -78,7 +78,7 @@ if len(sys.argv) >= 2:
             shutil.copy(mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
             print('copy', mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
 
-biobert = True
+biobert = False
 Y = 'full' # use all available labels in the dataset for prediction
 notes_file = '%s/NOTEEVENTS.csv' % MIMIC_3_DIR # raw note events downloaded from MIMIC-III
 vocab_size = 'full' # don't limit the vocab size to a specific number

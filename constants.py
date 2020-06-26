@@ -62,7 +62,7 @@ MAX_LENGTH = 512
 
 # MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA/MIMIC3-50'
 # MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA-pos/MIMIC3-50'
-MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA-pretrain/MIMIC3-50'
+# MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA-pretrain/MIMIC3-50'
 # MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA-pos-pretrain/MIMIC3-50'
 
 # MODEL_DIR = './outputs/biobert-512-5e_5-basic/MIMIC3-50'
@@ -111,7 +111,7 @@ MODEL_DIR = './outputs/bert-tiny-2500-5e_5-CA-pretrain/MIMIC3-50'
 # MODEL_DIR = './outputs/bert-tiny-CAML-2500-5e_5-CA/MIMIC3-50'
 # MODEL_DIR = './outputs/bert-tiny-CAML-2500-5e_5-CA-pos/MIMIC3-50'
 
-# MODEL_DIR = './outputs/debug'
+MODEL_DIR = './outputs/debug'
 
 DATA_DIR = './mimicdata/'
 # MIMIC_3_DIR = './mimicdata/bio-mimic3'

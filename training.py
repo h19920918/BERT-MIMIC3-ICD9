@@ -87,7 +87,10 @@ def init(args):
                                                        )
             def get_label_distribution(filename, dicts):
                 ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
-                labels_idx = [1e-15] * int(args.Y)
+                if args.Y == 'full':
+                    labels_idx = [1e-15] * 8921
+                else:
+                    labels_idx = [1e-15] * int(args.Y)
                 with open(filename, 'r') as infile:
                     r = csv.reader(infile)
                     # header
@@ -617,7 +620,10 @@ def pretrain(args, data_path):
 
     if args.model == 'bert':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-base-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH
@@ -630,7 +636,10 @@ def pretrain(args, data_path):
             model = BertForMaskedLM.from_pretrained('./pretrained_weights/bert-base-uncased-pytorch_model.bin', config=config)
     elif args.model == 'biobert':
         config = BertConfig.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/bert_config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH
@@ -649,7 +658,10 @@ def pretrain(args, data_path):
             model = BertForMaskedLM.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
         config.redefined_max_position_embeddings = MAX_LENGTH

@@ -38,7 +38,10 @@ def pick_model(args, dicts):
         model = models.BOWPool(Y, args.embed_file, args.lmbda, args.gpu, dicts, args.pool, args.embed_size, args.dropout, args.code_emb)
     elif args.model == 'bert':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-base-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
@@ -57,7 +60,10 @@ def pick_model(args, dicts):
             model = BertForMedical.from_pretrained('./pretrained_weights/bert-base-uncased-pytorch_model.bin', config=config)
     elif args.model == 'biobert':
         config = BertConfig.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/bert_config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=False)
@@ -76,7 +82,10 @@ def pick_model(args, dicts):
             model = BertForMedical.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
@@ -95,7 +104,10 @@ def pick_model(args, dicts):
             model = BertForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-caml':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-base-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
@@ -112,28 +124,12 @@ def pick_model(args, dicts):
             model = BertWithCAMLForMedical(config=config)
         else:
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-base-uncased-pytorch_model.bin', config=config)
-    elif args.model == 'bert-small-caml':
-        config = BertConfig.from_pretrained('./pretrained_weights/bert-small-uncased-config.json')
-        config.Y = int(args.Y)
-        config.gpu = args.gpu
-        if args.redefined_tokenizer:
-            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
-        else:
-            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-small-uncased-vocab.txt', do_lower_case=True)
-        config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
-        config.last_module = args.last_module
-        config.embed_size = args.embed_size
-        config.embed_file = args.embed_file
-        config.dicts = dicts
-        config.model = args.model
-        if args.from_scratch:
-            model = BertWithCAMLForMedical(config=config)
-        else:
-            model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-small-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny-caml':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
@@ -152,7 +148,10 @@ def pick_model(args, dicts):
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny-parallel-caml':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
-        config.Y = int(args.Y)
+        if args.Y == 'full':
+            config.Y = 8921
+        else:
+            config.Y = int(args.Y)
         config.gpu = args.gpu
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
