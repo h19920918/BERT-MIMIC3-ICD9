@@ -13,7 +13,11 @@ include/*
 lib/*
 share/*
 pip-selfcheck.json
-mimicdata/*
+!mimicdata/ICD9_descriptions
+mimicdata/mimic3/*
+!mimicdata/mimic3/*_hadm_ids.csv
 pretrained_weights/*
 tokenizers/*
 outputs/*
+
+.vscode

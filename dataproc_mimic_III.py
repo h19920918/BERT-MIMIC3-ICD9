@@ -17,6 +17,44 @@ from collections import Counter, defaultdict
 import csv
 import math
 import operator
+import os
+import shutil
+
+# copy mimic3 data for https://github.com/jamesmullenbach/caml-mimic#data-processing
+
+if len(sys.argv) >= 2:
+    mimic3_original_path = sys.argv[1]
+    if os.path.exists(mimic3_original_path):
+        if not os.path.exists(DATA_DIR):
+            os.mkdir(DATA_DIR)
+            print('mkdir', DATA_DIR)
+        if not os.path.exists(MIMIC_3_DIR):
+            os.mkdir(MIMIC_3_DIR)
+            print('mkdir', MIMIC_3_DIR)
+
+        if not os.path.isfile(DATA_DIR + '/D_ICD_DIAGNOSES.csv'):
+            shutil.copy(mimic3_original_path + '/D_ICD_DIAGNOSES.csv', DATA_DIR + '/D_ICD_DIAGNOSES.csv')
+            print('copy', mimic3_original_path + '/D_ICD_DIAGNOSES.csv', DATA_DIR + '/D_ICD_DIAGNOSES.csv')
+            
+        if not os.path.isfile(DATA_DIR + '/D_ICD_PROCEDURES.csv'):
+            shutil.copy(mimic3_original_path + '/D_ICD_PROCEDURES.csv', DATA_DIR + '/D_ICD_PROCEDURES.csv')
+            print('copy', mimic3_original_path + '/D_ICD_PROCEDURES.csv', DATA_DIR + '/D_ICD_PROCEDURES.csv')
+            
+        if not os.path.isfile(MIMIC_3_DIR + '/NOTEEVENTS.csv'):
+            shutil.copy(mimic3_original_path + '/NOTEEVENTS.csv', MIMIC_3_DIR + '/NOTEEVENTS.csv')
+            print('copy', mimic3_original_path + '/NOTEEVENTS.csv', MIMIC_3_DIR + '/NOTEEVENTS.csv')
+            
+        if not os.path.isfile(MIMIC_3_DIR + '/DIAGNOSES_ICD.csv'):
+            shutil.copy(mimic3_original_path + '/DIAGNOSES_ICD.csv', MIMIC_3_DIR + '/DIAGNOSES_ICD.csv')
+            print('copy', mimic3_original_path + '/DIAGNOSES_ICD.csv', MIMIC_3_DIR + '/DIAGNOSES_ICD.csv')
+            
+        if not os.path.isfile(MIMIC_3_DIR + '/PROCEDURES_ICD.csv'):
+            shutil.copy(mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
+            print('copy', mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
+            
+        if not os.path.isfile(MIMIC_3_DIR + '/PROCEDURES_ICD.csv'):
+            shutil.copy(mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
+            print('copy', mimic3_original_path + '/PROCEDURES_ICD.csv', MIMIC_3_DIR + '/PROCEDURES_ICD.csv')
 
 biobert = True
 Y = 'full' # use all available labels in the dataset for prediction
