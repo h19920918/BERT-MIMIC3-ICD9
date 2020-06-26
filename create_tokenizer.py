@@ -5,9 +5,9 @@ from tokenizers import BertWordPieceTokenizer
 # dev_corpus_file = './mimicdata/bio-mimic3/dev_50.csv'
 # test_corpus_file = './mimicdata/bio-mimic3/test_50.csv'
 
-train_corpus_file = './mimicdata/mimic3/train_50.csv'
-dev_corpus_file = './mimicdata/mimic3/dev_50.csv'
-test_corpus_file = './mimicdata/mimic3/test_50.csv'
+train_corpus_file = './mimicdata/mimic3/train_full.csv'
+dev_corpus_file = './mimicdata/mimic3/dev_full.csv'
+test_corpus_file = './mimicdata/mimic3/test_full.csv'
 
 limit_alphabet = 100
 vocab_size = 100000
@@ -28,7 +28,5 @@ tokenizer.train(
     min_frequency=1,
 )
 
-# tokenizer.save("./tokenizers", "bio-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
-# tokenizer.save("./tokenizers", "mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
-tokenizer.save("./tokenizers", "bert-tiny-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
-# tokenizer.save("./tokenizers", "bert-base-mimic3-{}-limit-{}".format(limit_alphabet, vocab_size))
+# tokenizer.save("./tokenizers", "bert-tiny-mimic3-50-{}-limit-{}".format(limit_alphabet, vocab_size))
+tokenizer.save("./tokenizers", "bert-tiny-mimic3-full-{}-limit-{}".format(limit_alphabet, vocab_size))
