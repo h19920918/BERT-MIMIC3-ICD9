@@ -28,7 +28,7 @@ from .modeling_bert import (BertPreTrainedModel, BertModel, BertForPreTraining,
                             BertForTokenClassification, BertForQuestionAnswering,
                             load_tf_weights_in_bert, BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
                             BertForMedical, BertWithCAMLForMedical, 
-                            BertTinyParallel3WithCAMLForMedical, BertTinyParallel4WithCAMLForMedical)
+                            BertTinyParallelWithCAMLForMedical)
 # Optimization
 from .optimization import (AdamW, ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule,
                            WarmupCosineWithHardRestartsSchedule, WarmupLinearSchedule)

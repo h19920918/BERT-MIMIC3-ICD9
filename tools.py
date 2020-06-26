@@ -11,7 +11,7 @@ import torch
 from torch.autograd import Variable
 
 import models
-from pytorch_transformers import BertConfig, BertTokenizer, BertForMedical, BertWithCAMLForMedical, BertTinyParallel3WithCAMLForMedical, BertTinyParallel4WithCAMLForMedical
+from pytorch_transformers import BertConfig, BertTokenizer, BertForMedical, BertWithCAMLForMedical, BertTinyParallelWithCAMLForMedical
 from constants import *
 import datasets
 import persistence
@@ -150,7 +150,7 @@ def pick_model(args, dicts):
             model = BertWithCAMLForMedical(config=config)
         else:
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
-    elif args.model == 'bert-tiny-parallel3-caml':
+    elif args.model == 'bert-tiny-parallel-caml':
         config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
         config.Y = int(args.Y)
         config.gpu = args.gpu
@@ -164,30 +164,18 @@ def pick_model(args, dicts):
         config.embed_size = args.embed_size
         config.embed_file = args.embed_file
         config.dicts = dicts
+        if args.bert_parallel_count:
+            config.bert_parallel_count = args.bert_parallel_count
+        else:
+            config.bert_parallel_count = 1
         config.model = args.model
         if args.from_scratch:
-            model = BertTinyParallel3WithCAMLForMedical(config=config)
+            model = BertTinyParallelWithCAMLForMedical(config=config)
         else:
-            model = BertTinyParallel3WithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
-    elif args.model == 'bert-tiny-parallel4-caml':
-        config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
-        config.Y = int(args.Y)
-        config.gpu = args.gpu
-        if args.redefined_tokenizer:
-            bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
-        else:
-            bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
-        config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
-        config.last_module = args.last_module
-        config.embed_size = args.embed_size
-        config.embed_file = args.embed_file
-        config.dicts = dicts
-        config.model = args.model
-        if args.from_scratch:
-            model = BertTinyParallel4WithCAMLForMedical(config=config)
-        else:
-            model = BertTinyParallel4WithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
+            model = BertTinyParallelWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
+
+
+
 
     if args.test_model:
         sd = torch.load(args.test_model)

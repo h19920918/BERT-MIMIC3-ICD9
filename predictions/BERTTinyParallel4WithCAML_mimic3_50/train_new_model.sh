@@ -2,8 +2,8 @@ python training.py \
     ./mimicdata/mimic3/train_50.csv \
     ./mimicdata/mimic3/vocab.csv \
     50 \
-    bert-tiny-parallel4-caml \
-    50 \
+    bert-tiny-parallel-caml \
+    20 \
     --batch-size 2 \
     --filter-size 10 \
     --num-filter-maps 50 \
@@ -17,3 +17,4 @@ python training.py \
     --max_sequence_length 3500 \
     --cuda_device_no 0 \
     --last_module caml_attn \
+    --bert_parallel_count 4 \

@@ -596,7 +596,7 @@ class BertModel(BertPreTrainedModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)
 
-        if not config.model in ['bert-small-caml', 'bert-tiny-caml', 'bert-tiny-parallel3-caml', 'bert-tiny-parallel4-caml']:
+        if not config.model in ['bert-small-caml', 'bert-tiny-caml', 'bert-tiny-parallel-caml']:
             self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
@@ -1500,9 +1500,9 @@ class BertWithCAMLForMedical(BertPreTrainedModel):
 
         return outputs  # (loss), scores, (hidden_states), (attentions)
 
-class BertTinyParallel3WithCAMLForMedical(BertPreTrainedModel):
+class BertTinyParallelWithCAMLForMedical(BertPreTrainedModel):
     def __init__(self, config):
-        super(BertTinyParallel3WithCAMLForMedical, self).__init__(config)
+        super(BertTinyParallelWithCAMLForMedical, self).__init__(config)
         self.config = config
         self.lmbda = 0
         self.Y = config.Y
@@ -1511,207 +1511,15 @@ class BertTinyParallel3WithCAMLForMedical(BertPreTrainedModel):
         self.embed_size = config.embed_size
         self.embed_file = config.embed_file
         self.dicts = config.dicts
-
-        self.bert = BertModel(config)
-        self.bert2 = BertModel(config)
-        self.bert3 = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-        self.init_weights()
-
-        # make embedding layer
-        if self.embed_file:
-            print("loading pretrained embeddings...")
-            W = torch.Tensor(extract_wvs.load_embeddings(self.embed_file))
-
-            self.embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
-            self.embed.weight.data = W.clone()
-        else:
-            # add 2 to include UNK and PAD
-            vocab_size = len(self.dicts['ind2w'])
-            self.embed = nn.Embedding(self.vocab_size+2, self.embed_size, padding_idx=0)
-
-        self.expand_linear = nn.Linear(self.embed_size, config.hidden_size, bias=False)
-        xavier_uniform(self.expand_linear.weight)
-
-        if self.last_module == 'basic':
-            self.final = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.final.weight)
-        elif self.last_module == 'soft_attn':
-            self.key = nn.Linear(config.hidden_size, 1, bias=False)
-            self.value = nn.Linear(config.hidden_size, config.hidden_size)
-            self.final = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.key.weight)
-            xavier_uniform(self.value.weight)
-            xavier_uniform(self.final.weight)
-        elif self.last_module == 'caml_attn':
-            self.bert_pool = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool.weight)
-            xavier_uniform(self.bert_attention.weight)
-            xavier_uniform(self.bert_classifier.weight)
-            
-            self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention2 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier2 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool2.weight)
-            xavier_uniform(self.bert_attention2.weight)
-            xavier_uniform(self.bert_classifier2.weight)
-            
-            self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention3 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier3 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool3.weight)
-            xavier_uniform(self.bert_attention3.weight)
-            xavier_uniform(self.bert_classifier3.weight)
-
-    def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
-        #calculate the BCE
-        loss = F.binary_cross_entropy_with_logits(yhat, target, pos_weight=pos_labels)
-
-        #add description regularization loss if relevant
-        if self.lmbda > 0 and diffs is not None:
-            diff = torch.stack(diffs).mean()
-            loss = loss + diff
-        return loss
-
-    def embed_descriptions(self, desc_data):
-        #label description embedding via convolutional layer
-        #number of labels is inconsistent across instances, so have to iterate over the batch
-        b_batch = []
-        for inst in desc_data:
-            if len(inst) > 0:
-                if self.gpu:
-                    lt = torch.cuda.LongTensor(inst)
-                else:
-                    lt = Variable(torch.LongTensor(inst))
-                d = self.desc_embedding(lt)
-                d = d.transpose(1,2)
-                d = self.label_conv(d)
-                d = F.max_pool1d(F.tanh(d), kernel_size=d.size()[2])
-                d = d.squeeze(2)
-                b_inst = self.label_fc1(d)
-                b_batch.append(b_inst)
-            else:
-                b_batch.append([])
-        return b_batch
-
-    def _compare_label_embeddings(self, target, b_batch, desc_data):
-        #description regularization loss 
-        #b is the embedding from description conv
-        #iterate over batch because each instance has different # labels
-        diffs = []
-        for i,bi in enumerate(b_batch):
-            ti = target[i]
-            inds = torch.nonzero(ti.data).squeeze().cpu().numpy()
-
-            zi = self.final.weight[inds,:]
-            diff = (zi - bi).mul(zi - bi).mean()
-
-            # multiply by number of labels to make sure overall mean is balanced with regard to number of labels
-            diffs.append(self.lmbda*diff*bi.size()[0])
-        return diffs
-
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
-                position_ids=None, head_mask=None, desc_data=None, pos_labels=None):
-        x = self.embed(input_ids)
-        x = self.expand_linear(x)
-        x = self.dropout(x)
-
-        outputs = self.bert(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
-
-        outputs2 = self.bert2(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
-
-        outputs3 = self.bert3(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
-
-        # For multi processing
-        if self.last_module == 'basic':
-            x = outputs[0].sum(dim=1)
-            x = self.dropout(x)
-            logits = self.final(x)
-        elif self.last_module == 'soft_attn':
-            x = outputs[0]
-            x = self.dropout(x)
-            x = x * attention_mask.float().unsqueeze(2)
-
-            # Soft-attention
-            key = self.key(x).squeeze(2)
-            key = key * attention_mask.float() + (attention_mask == 0).float() * -1e+15
-            key = F.softmax(key, dim=1).unsqueeze(1)
-            value = self.value(x)
-
-            logits = torch.bmm(key, value).squeeze(1)
-            logits = self.final(logits)
-        elif self.last_module == 'caml_attn':
-            x = outputs[0]
-            x = self.dropout(x)
-            x = self.bert_pool(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits1 = self.bert_classifier.weight.mul(m).sum(dim=2).add(self.bert_classifier.bias)
-            
-            x = outputs2[0]
-            x = self.dropout(x)
-            x = self.bert_pool2(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention2.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits2 = self.bert_classifier2.weight.mul(m).sum(dim=2).add(self.bert_classifier2.bias)
-            
-            x = outputs3[0]
-            x = self.dropout(x)
-            x = self.bert_pool3(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention3.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits3 = self.bert_classifier3.weight.mul(m).sum(dim=2).add(self.bert_classifier3.bias)
-            
-            logits = logits1 + logits2 + logits3
-
-        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
-        if labels is not None:
-            if desc_data is not None:
-                b_batch = self.embed_descriptions(desc_data, self.gpu)
-                diffs = self._compare_label_embeddings(target, b_batch, desc_data)
-            else:
-                diffs = None
-            loss = self._get_loss(logits, labels, diffs, pos_labels)
-
-            outputs = outputs + (loss,)
-
-        return outputs  # (loss), scores, (hidden_states), (attentions)
-
-
-class BertTinyParallel4WithCAMLForMedical(BertPreTrainedModel):
-    def __init__(self, config):
-        super(BertTinyParallel4WithCAMLForMedical, self).__init__(config)
-        self.config = config
-        self.lmbda = 0
-        self.Y = config.Y
-        self.gpu = config.gpu
-        self.last_module = config.last_module
-        self.embed_size = config.embed_size
-        self.embed_file = config.embed_file
-        self.dicts = config.dicts
+        self.bert_parallel_count = config.bert_parallel_count
 
         self.bert1 = BertModel(config)
-        self.bert2 = BertModel(config)
-        self.bert3 = BertModel(config)
-        self.bert4 = BertModel(config)
+        if config.bert_parallel_count >= 2:
+            self.bert2 = BertModel(config)
+        if config.bert_parallel_count >= 3:
+            self.bert3 = BertModel(config)
+        if config.bert_parallel_count >= 4:
+            self.bert4 = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
         self.init_weights()
@@ -1749,26 +1557,29 @@ class BertTinyParallel4WithCAMLForMedical(BertPreTrainedModel):
             xavier_uniform(self.bert_attention1.weight)
             xavier_uniform(self.bert_classifier1.weight)
             
-            self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention2 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier2 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool2.weight)
-            xavier_uniform(self.bert_attention2.weight)
-            xavier_uniform(self.bert_classifier2.weight)
+            if config.bert_parallel_count >= 2:
+                self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
+                self.bert_attention2 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                self.bert_classifier2 = nn.Linear(config.hidden_size, self.Y)
+                xavier_uniform(self.bert_pool2.weight)
+                xavier_uniform(self.bert_attention2.weight)
+                xavier_uniform(self.bert_classifier2.weight)
             
-            self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention3 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier3 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool3.weight)
-            xavier_uniform(self.bert_attention3.weight)
-            xavier_uniform(self.bert_classifier3.weight)
+            if config.bert_parallel_count >= 3:
+                self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
+                self.bert_attention3 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                self.bert_classifier3 = nn.Linear(config.hidden_size, self.Y)
+                xavier_uniform(self.bert_pool3.weight)
+                xavier_uniform(self.bert_attention3.weight)
+                xavier_uniform(self.bert_classifier3.weight)
             
-            self.bert_pool4 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention4 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier4 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool4.weight)
-            xavier_uniform(self.bert_attention4.weight)
-            xavier_uniform(self.bert_classifier4.weight)
+            if config.bert_parallel_count >= 4:
+                self.bert_pool4 = nn.Linear(config.hidden_size, config.hidden_size)
+                self.bert_attention4 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                self.bert_classifier4 = nn.Linear(config.hidden_size, self.Y)
+                xavier_uniform(self.bert_pool4.weight)
+                xavier_uniform(self.bert_attention4.weight)
+                xavier_uniform(self.bert_classifier4.weight)
 
     def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
         #calculate the BCE
@@ -1828,20 +1639,23 @@ class BertTinyParallel4WithCAMLForMedical(BertPreTrainedModel):
                             inputs_embeds=x, \
                            )
 
-        outputs2 = self.bert2(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
+        if self.bert_parallel_count >= 2:
+            outputs2 = self.bert2(input_ids, \
+                                attention_mask, \
+                                inputs_embeds=x, \
+                            )
 
-        outputs3 = self.bert3(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
+        if self.bert_parallel_count >= 3:
+            outputs3 = self.bert3(input_ids, \
+                                attention_mask, \
+                                inputs_embeds=x, \
+                            )
 
-        outputs4 = self.bert4(input_ids, \
-                            attention_mask, \
-                            inputs_embeds=x, \
-                           )
+        if self.bert_parallel_count >= 4:
+            outputs4 = self.bert4(input_ids, \
+                                attention_mask, \
+                                inputs_embeds=x, \
+                            )
 
         # For multi processing
         outputs = outputs1
@@ -1873,35 +1687,40 @@ class BertTinyParallel4WithCAMLForMedical(BertPreTrainedModel):
             alpha = F.softmax(alpha, dim=2)
             m = alpha.matmul(x)
             logits1 = self.bert_classifier1.weight.mul(m).sum(dim=2).add(self.bert_classifier1.bias)
+            logits = logits1
             
-            x = outputs2[0]
-            x = self.dropout(x)
-            x = self.bert_pool2(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention2.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits2 = self.bert_classifier2.weight.mul(m).sum(dim=2).add(self.bert_classifier2.bias)
+            if self.bert_parallel_count >= 2:
+                x = outputs2[0]
+                x = self.dropout(x)
+                x = self.bert_pool2(x)
+                alpha = x.transpose(1, 2)
+                alpha = self.bert_attention2.weight.matmul(alpha)
+                alpha = F.softmax(alpha, dim=2)
+                m = alpha.matmul(x)
+                logits2 = self.bert_classifier2.weight.mul(m).sum(dim=2).add(self.bert_classifier2.bias)
+                logits = logits + logits2
             
-            x = outputs3[0]
-            x = self.dropout(x)
-            x = self.bert_pool3(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention3.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits3 = self.bert_classifier3.weight.mul(m).sum(dim=2).add(self.bert_classifier3.bias)
+            if self.bert_parallel_count >= 3:
+                x = outputs3[0]
+                x = self.dropout(x)
+                x = self.bert_pool3(x)
+                alpha = x.transpose(1, 2)
+                alpha = self.bert_attention3.weight.matmul(alpha)
+                alpha = F.softmax(alpha, dim=2)
+                m = alpha.matmul(x)
+                logits3 = self.bert_classifier3.weight.mul(m).sum(dim=2).add(self.bert_classifier3.bias)
+                logits = logits + logits3
             
-            x = outputs4[0]
-            x = self.dropout(x)
-            x = self.bert_pool4(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention4.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits4 = self.bert_classifier4.weight.mul(m).sum(dim=2).add(self.bert_classifier4.bias)
-            
-            logits = logits1 + logits2 + logits3 + logits4
+            if self.bert_parallel_count >= 4:
+                x = outputs4[0]
+                x = self.dropout(x)
+                x = self.bert_pool4(x)
+                alpha = x.transpose(1, 2)
+                alpha = self.bert_attention4.weight.matmul(alpha)
+                alpha = F.softmax(alpha, dim=2)
+                m = alpha.matmul(x)
+                logits4 = self.bert_classifier4.weight.mul(m).sum(dim=2).add(self.bert_classifier4.bias)
+                logits = logits + logits4
 
         outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
         if labels is not None:

@@ -29,7 +29,7 @@ import tools as tools
 from pytorch_transformers import BertConfig, BertTokenizer, BertForMaskedLM
 
 
-BERT_MODEL_LIST = ['bert', 'biobert', 'bert-caml', 'bert-samll-caml', 'bert-tiny-caml', 'bert-tiny', 'bert-tiny-parallel3-caml', 'bert-tiny-parallel4-caml']
+BERT_MODEL_LIST = ['bert', 'biobert', 'bert-caml', 'bert-samll-caml', 'bert-tiny-caml', 'bert-tiny', 'bert-tiny-parallel-caml']
 
 
 def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
@@ -765,7 +765,7 @@ if __name__ == "__main__":
                         choices=["cnn_vanilla", "rnn", \
                                  "conv_attn", "multi_conv_attn", "logreg", "saved", "bert", "biobert", \
                                  "bert-caml", "bert-small-caml",
-                                 "bert-tiny-caml", 'bert-tiny', 'bert-tiny-parallel3-caml', 'bert-tiny-parallel4-caml', \
+                                 "bert-tiny-caml", 'bert-tiny', 'bert-tiny-parallel-caml', \
                                 ], \
                                 help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
@@ -831,6 +831,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
     parser.add_argument('--max_sequence_length', type=int, default=None)
     parser.add_argument('--cuda_device_no', type=int, default=None)
+    parser.add_argument('--bert_parallel_count', type=int, default=None)
     args = parser.parse_args()
     print('args', args)
 
