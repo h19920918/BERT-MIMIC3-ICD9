@@ -15,6 +15,6 @@ python \
     --test-model model.pth \
     --gpu \
     --max_sequence_length 3500 \
-    --cuda_device_no 0 \
+    --cuda_device_no 1 \
     --last_module caml_attn \
-    --bert_parallel_count 3 \
+    --bert_parallel_count 2 \
