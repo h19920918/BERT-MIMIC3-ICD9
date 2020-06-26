@@ -29,7 +29,7 @@ import tools as tools
 from pytorch_transformers import BertConfig, BertTokenizer, BertForMaskedLM
 
 
-BERT_MODEL_LIST = ['bert', 'biobert', 'bert-caml', 'bert-samll-caml', 'bert-tiny-caml', 'bert-tiny']
+BERT_MODEL_LIST = ['bert', 'biobert', 'bert-caml', 'bert-samll-caml', 'bert-tiny-caml', 'bert-tiny', 'bert-tiny-parallel3-caml', 'bert-tiny-parallel4-caml']
 
 
 def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
@@ -405,7 +405,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
     model.train()
     model.zero_grad()
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels,
-            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer)
+            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, max_seq_length=args.max_sequence_length)
     if labels_weight is not None:
         labels_weight = torch.LongTensor(labels_weight)
     for batch_idx, tup in tqdm(enumerate(gen)):
@@ -518,7 +518,7 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
         bert_tokenizer = None
 
     model.eval()
-    gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, test=True)
+    gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, test=True, max_seq_length=args.max_sequence_length)
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, target, hadm_ids, _, descs = tup
         data, target = torch.LongTensor(data), torch.FloatTensor(target)
@@ -684,7 +684,7 @@ def pretrain(args, data_path):
 
     model.train()
     model.zero_grad()
-    train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
+    train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer, max_seq_length=args.max_sequence_length)
 
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.pretrain_batch_size)
@@ -765,7 +765,7 @@ if __name__ == "__main__":
                         choices=["cnn_vanilla", "rnn", \
                                  "conv_attn", "multi_conv_attn", "logreg", "saved", "bert", "biobert", \
                                  "bert-caml", "bert-small-caml",
-                                 "bert-tiny-caml", 'bert-tiny' \
+                                 "bert-tiny-caml", 'bert-tiny', 'bert-tiny-parallel3-caml', 'bert-tiny-parallel4-caml', \
                                 ], \
                                 help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
@@ -829,12 +829,18 @@ if __name__ == "__main__":
     parser.add_argument('--pretrain_epochs', type=int, default=3)
     parser.add_argument('--pretrain_lr', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
+    parser.add_argument('--max_sequence_length', type=int, default=None)
+    parser.add_argument('--cuda_device_no', type=int, default=None)
     args = parser.parse_args()
+    print('args', args)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
+
+    if args.cuda_device_no is not None:
+        torch.cuda.set_device(args.cuda_device_no)
 
     command = ' '.join(['python'] + sys.argv)
     args.command = command

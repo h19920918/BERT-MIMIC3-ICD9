@@ -17,13 +17,16 @@ class Batch:
     """
         This class and the data_generator could probably be replaced with a PyTorch DataLoader
     """
-    def __init__(self, desc_embed):
+    def __init__(self, desc_embed, max_seq_length=None):
         self.docs = []
         self.labels = []
         self.hadm_ids = []
         self.code_set = set()
         self.length = 0
-        self.max_length = MAX_LENGTH
+        if max_seq_length is not None:
+            self.max_length = max_seq_length
+        else:
+            self.max_length = MAX_LENGTH
         self.desc_embed = desc_embed
         self.descs = []
 
@@ -124,7 +127,7 @@ def data_length(filename, version='mimic3'):
 
 
 def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False,
-        version='mimic3', bert_tokenizer=None, test=False):
+        version='mimic3', bert_tokenizer=None, test=False, max_seq_length=None):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -150,14 +153,14 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False,
         # header
         next(r)
 
-        cur_inst = Batch(desc_embed)
+        cur_inst = Batch(desc_embed, max_seq_length=max_seq_length)
         for row in r:
             # find the next `batch_size` instances
             if len(cur_inst.docs) == batch_size:
                 cur_inst.pad_docs()
                 yield cur_inst.to_ret()
                 # clear
-                cur_inst = Batch(desc_embed)
+                cur_inst = Batch(desc_embed, max_seq_length=max_seq_length)
             cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, bert_tokenizer)
         cur_inst.pad_docs()
         yield cur_inst.to_ret()
