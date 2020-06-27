@@ -844,6 +844,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_sequence_length', type=int, default=None)
     parser.add_argument('--cuda_device_no', type=int, default=None)
     parser.add_argument('--bert_parallel_count', type=int, default=None)
+    parser.add_argument('--bert_parallel_final_layer', type=str, choices=['sum', 'cat'], default='sum')
     args = parser.parse_args()
     print('args', args)
 

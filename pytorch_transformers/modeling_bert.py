@@ -1512,6 +1512,7 @@ class BertTinyParallelWithCAMLForMedical(BertPreTrainedModel):
         self.embed_file = config.embed_file
         self.dicts = config.dicts
         self.bert_parallel_count = config.bert_parallel_count
+        self.bert_parallel_final_layer = config.bert_parallel_final_layer
 
         self.bert1 = BertModel(config)
         if config.bert_parallel_count >= 2:
@@ -1550,36 +1551,57 @@ class BertTinyParallelWithCAMLForMedical(BertPreTrainedModel):
             xavier_uniform(self.value.weight)
             xavier_uniform(self.final.weight)
         elif self.last_module == 'caml_attn':
-            self.bert_pool1 = nn.Linear(config.hidden_size, config.hidden_size)
-            self.bert_attention1 = nn.Linear(config.hidden_size, self.Y, bias=False)
-            self.bert_classifier1 = nn.Linear(config.hidden_size, self.Y)
-            xavier_uniform(self.bert_pool1.weight)
-            xavier_uniform(self.bert_attention1.weight)
-            xavier_uniform(self.bert_classifier1.weight)
-            
-            if config.bert_parallel_count >= 2:
-                self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
-                self.bert_attention2 = nn.Linear(config.hidden_size, self.Y, bias=False)
-                self.bert_classifier2 = nn.Linear(config.hidden_size, self.Y)
-                xavier_uniform(self.bert_pool2.weight)
-                xavier_uniform(self.bert_attention2.weight)
-                xavier_uniform(self.bert_classifier2.weight)
-            
-            if config.bert_parallel_count >= 3:
-                self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
-                self.bert_attention3 = nn.Linear(config.hidden_size, self.Y, bias=False)
-                self.bert_classifier3 = nn.Linear(config.hidden_size, self.Y)
-                xavier_uniform(self.bert_pool3.weight)
-                xavier_uniform(self.bert_attention3.weight)
-                xavier_uniform(self.bert_classifier3.weight)
-            
-            if config.bert_parallel_count >= 4:
-                self.bert_pool4 = nn.Linear(config.hidden_size, config.hidden_size)
-                self.bert_attention4 = nn.Linear(config.hidden_size, self.Y, bias=False)
-                self.bert_classifier4 = nn.Linear(config.hidden_size, self.Y)
-                xavier_uniform(self.bert_pool4.weight)
-                xavier_uniform(self.bert_attention4.weight)
-                xavier_uniform(self.bert_classifier4.weight)
+            if self.bert_parallel_final_layer == 'cat':
+                self.bert_pool1 = nn.Linear(config.hidden_size, config.hidden_size)
+                xavier_uniform(self.bert_pool1.weight)
+
+                if config.bert_parallel_count >= 2:
+                    self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
+                    xavier_uniform(self.bert_pool2.weight)
+
+                if config.bert_parallel_count >= 3:
+                    self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
+                    xavier_uniform(self.bert_pool3.weight)
+
+                if config.bert_parallel_count >= 4:
+                    self.bert_pool4 = nn.Linear(config.hidden_size, config.hidden_size)
+                    xavier_uniform(self.bert_pool4.weight)
+
+                self.bert_attention = nn.Linear(config.hidden_size * config.bert_parallel_count, self.Y, bias=False)
+                self.bert_classifier = nn.Linear(config.hidden_size * config.bert_parallel_count, self.Y)
+                xavier_uniform(self.bert_attention.weight)
+                xavier_uniform(self.bert_classifier.weight)
+            else:
+                self.bert_pool1 = nn.Linear(config.hidden_size, config.hidden_size)
+                self.bert_attention1 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                self.bert_classifier1 = nn.Linear(config.hidden_size, self.Y)
+                xavier_uniform(self.bert_pool1.weight)
+                xavier_uniform(self.bert_attention1.weight)
+                xavier_uniform(self.bert_classifier1.weight)
+
+                if config.bert_parallel_count >= 2:
+                    self.bert_pool2 = nn.Linear(config.hidden_size, config.hidden_size)
+                    self.bert_attention2 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                    self.bert_classifier2 = nn.Linear(config.hidden_size, self.Y)
+                    xavier_uniform(self.bert_pool2.weight)
+                    xavier_uniform(self.bert_attention2.weight)
+                    xavier_uniform(self.bert_classifier2.weight)
+
+                if config.bert_parallel_count >= 3:
+                    self.bert_pool3 = nn.Linear(config.hidden_size, config.hidden_size)
+                    self.bert_attention3 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                    self.bert_classifier3 = nn.Linear(config.hidden_size, self.Y)
+                    xavier_uniform(self.bert_pool3.weight)
+                    xavier_uniform(self.bert_attention3.weight)
+                    xavier_uniform(self.bert_classifier3.weight)
+
+                if config.bert_parallel_count >= 4:
+                    self.bert_pool4 = nn.Linear(config.hidden_size, config.hidden_size)
+                    self.bert_attention4 = nn.Linear(config.hidden_size, self.Y, bias=False)
+                    self.bert_classifier4 = nn.Linear(config.hidden_size, self.Y)
+                    xavier_uniform(self.bert_pool4.weight)
+                    xavier_uniform(self.bert_attention4.weight)
+                    xavier_uniform(self.bert_classifier4.weight)
 
     def _get_loss(self, yhat, target, diffs=None, pos_labels=None):
         #calculate the BCE
@@ -1679,48 +1701,82 @@ class BertTinyParallelWithCAMLForMedical(BertPreTrainedModel):
             logits = torch.bmm(key, value).squeeze(1)
             logits = self.final(logits)
         elif self.last_module == 'caml_attn':
-            x = outputs1[0]
-            x = self.dropout(x)
-            x = self.bert_pool1(x)
-            alpha = x.transpose(1, 2)
-            alpha = self.bert_attention1.weight.matmul(alpha)
-            alpha = F.softmax(alpha, dim=2)
-            m = alpha.matmul(x)
-            logits1 = self.bert_classifier1.weight.mul(m).sum(dim=2).add(self.bert_classifier1.bias)
-            logits = logits1
-            
-            if self.bert_parallel_count >= 2:
-                x = outputs2[0]
+            if self.bert_parallel_final_layer == 'cat':
+                x_list = []
+
+                x = outputs1[0]
                 x = self.dropout(x)
-                x = self.bert_pool2(x)
+                x = self.bert_pool1(x)
+                x_list.append(x)
+
+                if self.bert_parallel_count >= 2:
+                    x = outputs2[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool2(x)
+                    x_list.append(x)
+                if self.bert_parallel_count >= 3:
+                    x = outputs3[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool3(x)
+                    x_list.append(x)
+                if self.bert_parallel_count >= 4:
+                    x = outputs4[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool4(x)
+                    x_list.append(x)
+                    
+                x = torch.cat(x_list, 2)
                 alpha = x.transpose(1, 2)
-                alpha = self.bert_attention2.weight.matmul(alpha)
+                alpha = self.bert_attention.weight.matmul(alpha)
                 alpha = F.softmax(alpha, dim=2)
                 m = alpha.matmul(x)
-                logits2 = self.bert_classifier2.weight.mul(m).sum(dim=2).add(self.bert_classifier2.bias)
-                logits = logits + logits2
-            
-            if self.bert_parallel_count >= 3:
-                x = outputs3[0]
+                logits = self.bert_classifier.weight.mul(m).sum(dim=2).add(self.bert_classifier.bias)
+            else:
+                logit_list = []
+
+                x = outputs1[0]
                 x = self.dropout(x)
-                x = self.bert_pool3(x)
+                x = self.bert_pool1(x)
                 alpha = x.transpose(1, 2)
-                alpha = self.bert_attention3.weight.matmul(alpha)
+                alpha = self.bert_attention1.weight.matmul(alpha)
                 alpha = F.softmax(alpha, dim=2)
                 m = alpha.matmul(x)
-                logits3 = self.bert_classifier3.weight.mul(m).sum(dim=2).add(self.bert_classifier3.bias)
-                logits = logits + logits3
-            
-            if self.bert_parallel_count >= 4:
-                x = outputs4[0]
-                x = self.dropout(x)
-                x = self.bert_pool4(x)
-                alpha = x.transpose(1, 2)
-                alpha = self.bert_attention4.weight.matmul(alpha)
-                alpha = F.softmax(alpha, dim=2)
-                m = alpha.matmul(x)
-                logits4 = self.bert_classifier4.weight.mul(m).sum(dim=2).add(self.bert_classifier4.bias)
-                logits = logits + logits4
+                logits1 = self.bert_classifier1.weight.mul(m).sum(dim=2).add(self.bert_classifier1.bias)
+                logit_list.append(logits1)
+
+                if self.bert_parallel_count >= 2:
+                    x = outputs2[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool2(x)
+                    alpha = x.transpose(1, 2)
+                    alpha = self.bert_attention2.weight.matmul(alpha)
+                    alpha = F.softmax(alpha, dim=2)
+                    m = alpha.matmul(x)
+                    logits2 = self.bert_classifier2.weight.mul(m).sum(dim=2).add(self.bert_classifier2.bias)
+                    logit_list.append(logits2)
+
+                if self.bert_parallel_count >= 3:
+                    x = outputs3[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool3(x)
+                    alpha = x.transpose(1, 2)
+                    alpha = self.bert_attention3.weight.matmul(alpha)
+                    alpha = F.softmax(alpha, dim=2)
+                    m = alpha.matmul(x)
+                    logits3 = self.bert_classifier3.weight.mul(m).sum(dim=2).add(self.bert_classifier3.bias)
+                    logit_list.append(logits3)
+
+                if self.bert_parallel_count >= 4:
+                    x = outputs4[0]
+                    x = self.dropout(x)
+                    x = self.bert_pool4(x)
+                    alpha = x.transpose(1, 2)
+                    alpha = self.bert_attention4.weight.matmul(alpha)
+                    alpha = F.softmax(alpha, dim=2)
+                    m = alpha.matmul(x)
+                    logits4 = self.bert_classifier4.weight.mul(m).sum(dim=2).add(self.bert_classifier4.bias)
+                    logit_list.append(logits4)
+                logits = sum(logit_list)
 
         outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
         if labels is not None:

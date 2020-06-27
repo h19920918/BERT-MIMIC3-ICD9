@@ -167,6 +167,7 @@ def pick_model(args, dicts):
             config.bert_parallel_count = args.bert_parallel_count
         else:
             config.bert_parallel_count = 1
+        config.bert_parallel_final_layer = args.bert_parallel_final_layer
         config.model = args.model
         if args.from_scratch:
             model = BertTinyParallelWithCAMLForMedical(config=config)

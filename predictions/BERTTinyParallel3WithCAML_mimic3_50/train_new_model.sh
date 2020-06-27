@@ -7,7 +7,7 @@ python training.py \
     --batch-size 2 \
     --filter-size 10 \
     --num-filter-maps 50 \
-    --dropout 0.1 \
+    --dropout 0.3 \
     --patience 3 \
     --criterion prec_at_8 \
     --lr 5e-5 \
@@ -18,3 +18,4 @@ python training.py \
     --cuda_device_no 0 \
     --last_module caml_attn \
     --bert_parallel_count 3 \
+    --bert_parallel_final_layer cat \
