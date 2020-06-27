@@ -15,11 +15,12 @@ CUDA_VISIBLE_DEVICES=3 python training.py \
     --gpu \
     --batch-size 4 \
     --last_module caml_attn \
-    # --pretrain-batch-size 4 \
-    # --pretrain \
+    --redefined_tokenizer \
+    --pretrain_lr 1e-4 \
+    --pretrain-batch-size 2 \
+    --pretrain \
     # --pos \
     # --pretrain-batch-size 2 \
-    # --redefined_tokenizer \
     # --pretrain \
     # --from_scratch \
     # conv_attn \

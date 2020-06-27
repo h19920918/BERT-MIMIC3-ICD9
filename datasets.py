@@ -188,9 +188,7 @@ def pretrain_data_generator(args, filename, batch_size, version='mimic3', bert_t
             all_instances = []
             for row in r:
                 text = row[2]
-                text = bert_tokenizer.encode(text.lower(), add_special_tokens=True)
-                text = text[1:]
-                text = text[:-1]
+                text = bert_tokenizer.encode(text.lower())
 
                 text_length = len(text)
                 for idx in range(0, text_length, MAX_LENGTH-2):

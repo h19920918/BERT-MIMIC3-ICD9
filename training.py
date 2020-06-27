@@ -188,9 +188,10 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
             test_prec_micro = metrics_hist_te['prec_micro'][-1]
             test_rec_micro = metrics_hist_te['rec_micro'][-1]
             test_f1_micro = metrics_hist_te['f1_micro'][-1]
-            test_rec_at_5 = metrics_hist_te['rec_at_5'][-1]
-            test_prec_at_5 = metrics_hist_te['prec_at_5'][-1]
-            test_f1_at_5 = metrics_hist_te['f1_at_5'][-1]
+            if not args.Y == 'full':
+                test_rec_at_5 = metrics_hist_te['rec_at_5'][-1]
+                test_prec_at_5 = metrics_hist_te['prec_at_5'][-1]
+                test_f1_at_5 = metrics_hist_te['f1_at_5'][-1]
             test_auc_macro = metrics_hist_te['auc_macro'][-1]
             test_auc_micro = metrics_hist_te['auc_micro'][-1]
             test_loss = metrics_hist_te['loss_test'][-1]
@@ -205,9 +206,10 @@ def train_epochs(args, model, optimizer, params, dicts, scheduler, labels_weight
             dev_prec_micro = metrics_hist['prec_micro'][-1]
             dev_rec_micro = metrics_hist['rec_micro'][-1]
             dev_f1_micro = metrics_hist['f1_micro'][-1]
-            dev_rec_at_5 = metrics_hist['rec_at_5'][-1]
-            dev_prec_at_5 = metrics_hist['prec_at_5'][-1]
-            dev_f1_at_5 = metrics_hist['f1_at_5'][-1]
+            if not args.Y == 'full':
+                dev_rec_at_5 = metrics_hist['rec_at_5'][-1]
+                dev_prec_at_5 = metrics_hist['prec_at_5'][-1]
+                dev_f1_at_5 = metrics_hist['f1_at_5'][-1]
             dev_auc_macro = metrics_hist['auc_macro'][-1]
             dev_auc_micro = metrics_hist['auc_micro'][-1]
             dev_loss = metrics_hist['loss_dev'][-1]
@@ -408,7 +410,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
     model.train()
     model.zero_grad()
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels,
-            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, max_seq_length=args.max_sequence_length)
+            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, max_seq_elngth=args.max_sequence_length)
     if labels_weight is not None:
         labels_weight = torch.LongTensor(labels_weight)
     for batch_idx, tup in tqdm(enumerate(gen)):
@@ -696,7 +698,7 @@ def pretrain(args, data_path):
 
     model.train()
     model.zero_grad()
-    train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer, max_seq_length=args.max_sequence_length)
+    train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
 
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.pretrain_batch_size)
@@ -829,15 +831,12 @@ if __name__ == "__main__":
     parser.add_argument('--warmup_steps', type=int, default=0)
     parser.add_argument('--pos', action='store_true')
     parser.add_argument('--redefined_tokenizer', action='store_true')
-    # parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bio-mimic3-6000-limit-10000-vocab.txt')
-    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bert-tiny-mimic3-100-limit-100000-vocab.txt')
+    parser.add_argument('--tokenizer_path', type=str, default='./tokenizers/bert-tiny-mimic3-full-100-limit-100000-vocab.txt')
     parser.add_argument('--last_module', type=str, default='basic')
     parser.add_argument('--from_scratch', action='store_true')
     parser.add_argument('--pretrain', action='store_true')
     parser.add_argument("--pretrain-batch-size", type=int, default=2)
-    # parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_512')
-    parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_tiny_512')
-    # parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_tiny_2500')
+    parser.add_argument('--pretrain_datafile', type=str, default='./mimicdata/mimic3/pretrain_bert_tiny_2500')
     parser.add_argument('--pretrain_epochs', type=int, default=3)
     parser.add_argument('--pretrain_lr', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=random.randint(0, 10000))
