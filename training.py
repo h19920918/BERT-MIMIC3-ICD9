@@ -410,7 +410,7 @@ def train(args, model, optimizer, Y, epoch, batch_size, data_path, gpu, version,
     model.train()
     model.zero_grad()
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels,
-            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, max_seq_elngth=args.max_sequence_length)
+            version=version, desc_embed=desc_embed, bert_tokenizer=bert_tokenizer, max_seq_length=args.max_sequence_length)
     if labels_weight is not None:
         labels_weight = torch.LongTensor(labels_weight)
     for batch_idx, tup in tqdm(enumerate(gen)):
@@ -604,6 +604,7 @@ def test(args, model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts,
 
 
 def pretrain(args, data_path):
+    print('[pretrain] create config, model')
     if args.model == 'bert':
         if args.redefined_tokenizer:
             bert_tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path, do_lower_case=True)
@@ -628,7 +629,10 @@ def pretrain(args, data_path):
             config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
 
@@ -644,7 +648,10 @@ def pretrain(args, data_path):
             config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
         if args.from_scratch:
@@ -652,7 +659,10 @@ def pretrain(args, data_path):
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.model = args.model
         if args.from_scratch:
             model = BertForMaskedLM(config=config)
@@ -666,7 +676,10 @@ def pretrain(args, data_path):
             config.Y = int(args.Y)
         config.gpu = args.gpu
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
         if args.from_scratch:
@@ -678,6 +691,7 @@ def pretrain(args, data_path):
         model.cuda()
 
 
+    print('[pretrain] prepare optimizer, scheduler')
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -698,11 +712,14 @@ def pretrain(args, data_path):
 
     model.train()
     model.zero_grad()
+
+    print('[pretrain] create dataloader')
     train_dataset = datasets.pretrain_data_generator(args, data_path, args.pretrain_batch_size, version=args.version, bert_tokenizer=bert_tokenizer)
 
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.pretrain_batch_size)
 
+    print('[pretrain] start epoch')
     for epoch in range(args.pretrain_epochs):
         losses = []
         for batch_idx, data in tqdm(enumerate(train_dataloader)):
@@ -844,6 +861,7 @@ if __name__ == "__main__":
     parser.add_argument('--cuda_device_no', type=int, default=None)
     parser.add_argument('--bert_parallel_count', type=int, default=None)
     parser.add_argument('--bert_parallel_final_layer', type=str, choices=['sum', 'cat'], default='sum')
+    parser.add_argument('--from_prev_result', type=str, default=None)
     args = parser.parse_args()
     print('args', args)
 

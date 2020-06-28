@@ -49,7 +49,10 @@ def pick_model(args, dicts):
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-base-uncased-vocab.txt', do_lower_case=True)
 
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
         if args.from_scratch and not args.pretrain:
@@ -71,7 +74,10 @@ def pick_model(args, dicts):
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/biobert_pretrain_output_all_notes_150000/vocab.txt', do_lower_case=False)
 
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
         if args.from_scratch and not args.pretrain:
@@ -93,7 +99,10 @@ def pick_model(args, dicts):
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
 
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.model = args.model
         if args.from_scratch and not args.pretrain:
@@ -114,7 +123,10 @@ def pick_model(args, dicts):
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-base-uncased-vocab.txt', do_lower_case=True)
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.embed_size = args.embed_size
         config.embed_file = args.embed_file
@@ -125,7 +137,10 @@ def pick_model(args, dicts):
         else:
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-base-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny-caml':
-        config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
+        if args.from_prev_result:
+            config = BertConfig.from_pretrained(args.from_prev_result + '/config.json')
+        else:
+            config = BertConfig.from_pretrained('./pretrained_weights/bert-tiny-uncased-config.json')
         if args.Y == 'full':
             config.Y = 8921
         else:
@@ -136,7 +151,10 @@ def pick_model(args, dicts):
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.embed_size = args.embed_size
         config.embed_file = args.embed_file
@@ -144,6 +162,8 @@ def pick_model(args, dicts):
         config.model = args.model
         if args.from_scratch:
             model = BertWithCAMLForMedical(config=config)
+        elif args.from_prev_result:
+            model = BertWithCAMLForMedical.from_pretrained(args.from_prev_result + '/pytorch_model.bin', config=config)
         else:
             model = BertWithCAMLForMedical.from_pretrained('./pretrained_weights/bert-tiny-uncased-pytorch_model.bin', config=config)
     elif args.model == 'bert-tiny-parallel-caml':
@@ -158,7 +178,10 @@ def pick_model(args, dicts):
         else:
             bert_tokenizer = BertTokenizer.from_pretrained('./pretrained_weights/bert-tiny-uncased-vocab.txt', do_lower_case=True)
         config.redefined_vocab_size = len(bert_tokenizer)
-        config.redefined_max_position_embeddings = MAX_LENGTH
+        if args.max_sequence_length is None:
+            config.redefined_max_position_embeddings = MAX_LENGTH
+        else:
+            config.redefined_max_position_embeddings = args.max_sequence_length
         config.last_module = args.last_module
         config.embed_size = args.embed_size
         config.embed_file = args.embed_file
